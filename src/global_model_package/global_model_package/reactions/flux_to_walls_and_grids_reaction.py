@@ -44,15 +44,20 @@ class FluxToWallsAndThroughGrids(Reaction):
         S_grid_h = self.chamber.S_gridded_wall*self.chamber.h_L(ng_tot)
         denominator1 = np.sqrt(2*pi) * (1 - beta_grid_ions * S_grid_h / self.chamber.S_eff_total(ng_tot))  
         mass_arr = np.array([sp.mass for sp in self.species.species])
-        denominator2 = np.sum( state[:self.species.nb] * np.sqrt(m_e / mass_arr) )      
-        return state[self.species.nb] * np.log(state[0]/ (denominator1 * denominator2))
+        denominator2 = np.sum([state[sp.index] * np.sqrt(m_e / sp.mass) for sp in self.species.species[1:] if sp.charge !=0 ])  
+        self.var_tracker.add_value_to_variable("phi_sheath", state[self.species.nb] * np.log(state[0]/ (denominator1 * denominator2)))
+        self.var_tracker.add_value_to_variable("phi_den1", denominator1)
+        self.var_tracker.add_value_to_variable("phi_den2", denominator2) 
+        self.var_tracker.add_value_to_variable("phi_dens_tot", np.sum( state[:self.species.nb])) 
 
-        # s = 0.0
-        # for sp in self.species.species[1:]:
-        #     if sp.charge != 0:
-        #         s += state[sp.index] * np.sqrt(m_e/sp.mass)
-        # a = np.sqrt(2 * np.pi) * (1 - beta) * s
+        s = 0.0
+        for sp in self.species.species[1:]:
+            if sp.charge != 0:
+                s += state[sp.index] * np.sqrt(m_e/sp.mass)
+        a = np.sqrt(2 * np.pi) * (1 - beta_grid_ions) * s
         # return state[self.species.nb] * np.log(state[0]/a)
+        self.var_tracker.add_value_to_variable("phi_old_sheath", state[self.species.nb] * np.log(state[0]/a))
+        return state[self.species.nb] * np.log(state[0]/ (denominator1 * denominator2))
 
 
     @override
