@@ -9,7 +9,7 @@ from global_model_package.chamber_caracteristics import Chamber
 
 class Dissociation(Reaction):
     """
-    Elastic collision between a particle and an electron
+    Elastic collision between a particle and an electron. Energies should be in eV
     Works with 3 temperatures : Te, Tmono, Tdiat
     In reactives, electron must be in first position and colliding_specie next.
     """

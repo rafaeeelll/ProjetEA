@@ -8,8 +8,6 @@ from .reaction import Reaction
 from global_model_package.chamber_caracteristics import Chamber
 
 
-# * Checked by me
-
 class InelasticCollision(Reaction):
     """
         Represents the collisions between ions accelerated towards the walls and the neutral gas.
@@ -45,7 +43,7 @@ class InelasticCollision(Reaction):
 
     
     @override
-    def energy_change_rate(self, state): ### PROBLEME !!!!!!
+    def energy_change_rate(self, state):
         rate = np.zeros(3)
         E_ion=0
 

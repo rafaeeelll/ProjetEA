@@ -39,13 +39,20 @@ class FluxToWallsAndThroughGrids(Reaction):
             total += state[i]
         return total
     
-    def phi_sheath(self, state, beta):
-        s = 0.0
-        for sp in self.species.species[1:]:
-            if sp.charge != 0:
-                s += state[sp.index] * np.sqrt(m_e/sp.mass)
-        a = np.sqrt(2 * np.pi) * (1 - beta) * s
-        return state[self.species.nb] * np.log(state[0]/a)
+    def phi_sheath(self, state, beta_grid_ions):
+        ng_tot = self.n_g_tot(state)
+        S_grid_h = self.chamber.S_gridded_wall*self.chamber.h_L(ng_tot)
+        denominator1 = np.sqrt(2*pi) * (1 - beta_grid_ions * S_grid_h / self.chamber.S_eff_total(ng_tot))  
+        mass_arr = np.array([sp.mass for sp in self.species.species])
+        denominator2 = np.sum( state[:self.species.nb] * np.sqrt(m_e / mass_arr) )      
+        return state[self.species.nb] * np.log(state[0]/ (denominator1 * denominator2))
+
+        # s = 0.0
+        # for sp in self.species.species[1:]:
+        #     if sp.charge != 0:
+        #         s += state[sp.index] * np.sqrt(m_e/sp.mass)
+        # a = np.sqrt(2 * np.pi) * (1 - beta) * s
+        # return state[self.species.nb] * np.log(state[0]/a)
 
 
     @override
@@ -74,8 +81,7 @@ class FluxToWallsAndThroughGrids(Reaction):
         rate = np.zeros(3)
 
         #E_kin = 7*e*state[self.species.nb]
-        E_kin_1 = (5/2 * e * state[self.species.nb] + e*self.phi_sheath(state, 0))
-        E_kin_2 = (5/2 * e * state[self.species.nb] + e*self.phi_sheath(state, self.chamber.beta_i))
+        E_kin = (5/2 * e * state[self.species.nb] + e*self.phi_sheath(state, self.chamber.beta_i))
 
 
         # * energy loss for ions neglected for now because missing energy of ion
@@ -91,8 +97,8 @@ class FluxToWallsAndThroughGrids(Reaction):
 
         #rate[0] -= E_kin * gamma_e * self.chamber.S_eff_total(self.n_g_tot(state)) / self.chamber.V_chamber
         #         
-        rate[0] -= E_kin_1 * gamma_e * self.chamber.S_eff_total(self.n_g_tot(state)) / self.chamber.V_chamber
-        rate[0] -= E_kin_2 * gamma_e * self.chamber.S_gridded_wall * self.chamber.h_L(self.n_g_tot(state)) / self.chamber.V_chamber
+        rate[0] -= E_kin * gamma_e * self.chamber.S_eff_total_ion_neutrelisation(self.n_g_tot(state)) / self.chamber.V_chamber
+        #rate[0] -= E_kin_2 * gamma_e * self.chamber.S_gridded_wall * self.chamber.h_L(self.n_g_tot(state)) / self.chamber.V_chamber
 
         self.var_tracker.add_value_to_variable_list("energy_change_flux_to_walls_and_through_grids", rate)
         return rate
