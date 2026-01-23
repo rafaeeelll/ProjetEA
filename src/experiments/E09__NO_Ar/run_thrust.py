@@ -26,7 +26,7 @@ from reaction_set_N_et_O import get_species_and_reactions, get_neutral_atmospher
 
 # --- Sweep settings ---
 altitudes_km = np.arange(150, 301, 10)
-power_w = 1000
+power_w = 3000
 
 # --- MSIS defaults (arbitrary) ---
 date = datetime(2020, 1, 1, 12, 0, 0)
@@ -34,13 +34,9 @@ lat = 0.0
 lon = 0.0
 
 # --- Target pressure from average at 250 km ---
-atm_ref = get_neutral_atmosphere(250, lat=lat, lon=lon, date=date, use_msise=True)
-if atm_ref is None:
-    target_pressure = 1e-4
-    print("Warning: NRLMSISE00 failed at 250 km. Using fallback target_pressure=1e-4 Pa.")
-else:
-    target_pressure = atm_ref["pressure_pa"]
-    print(f"Using target_pressure={target_pressure:.3e} Pa (source={atm_ref.get('source')})")
+atm_ref = get_neutral_atmosphere(250, lat=lat, lon=lon, date=date)
+target_pressure = max(atm_ref["pressure_pa"], 1e-3)
+print(f"Using target_pressure={target_pressure:.3e} Pa (source={atm_ref.get('source')})")
 
 # --- Chamber config (target pressure mode) ---
 config_dict = {
@@ -68,14 +64,7 @@ results = {
 }
 
 for altitude in altitudes_km:
-    atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date, use_msise=True)
-    if atm is None:
-        print(f"Skipping altitude {altitude} km (no MSIS data).")
-        results["altitudes_km"].append(float(altitude))
-        results["ion_thrust_N"].append(float("nan"))
-        results["neutral_thrust_N"].append(float("nan"))
-        results["total_thrust_N"].append(float("nan"))
-        continue
+    atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date)
 
     chamber = Chamber(config_dict)
     # Provide grid parameters for thrust computation only
@@ -89,18 +78,10 @@ for altitude in altitudes_km:
         lat=lat,
         lon=lon,
         date=date,
-        use_msise=True,
-        ion_seed=1e8,
-        electron_seed=1e10,
+        ion_seed=1e10,
+        electron_seed=1e12,
         atm=atm,
     )
-    if species is None:
-        print(f"Skipping altitude {altitude} km (no atmosphere data).")
-        results["altitudes_km"].append(float(altitude))
-        results["ion_thrust_N"].append(float("nan"))
-        results["neutral_thrust_N"].append(float("nan"))
-        results["total_thrust_N"].append(float("nan"))
-        continue
 
     electron_heating = ElectronHeatingConstantRFPower(species, power_w, chamber)
     model = GlobalModel(

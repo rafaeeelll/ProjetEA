@@ -23,40 +23,19 @@ DEFAULT_MSIS_F107A = 150.0
 DEFAULT_MSIS_AP = 4
 
 
-def _try_msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap):
-    try:
-        from nrlmsise00 import msise_model, msise_input, msise_flags  # type: ignore
-    except Exception:
-        print("Warning: nrlmsise00 module not found. Install with `pip install nrlmsise00`.")
-        return None
+def _msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap):
+    from nrlmsise00 import msise_model  # type: ignore
 
-    doy = date.timetuple().tm_yday
-    sec = date.hour * 3600 + date.minute * 60 + date.second
-    lst = date.hour + date.minute / 60 + date.second / 3600
+    dens, temp = msise_model(date, altitude_km, lat, lon, f107a, f107, ap)
+    dens = np.array(dens, dtype=float)
+    temp = np.array(temp, dtype=float)
 
-    try:
-        inp = msise_input(year=date.year, doy=doy, sec=sec, alt=altitude_km, g_lat=lat, g_long=lon, lst=lst, f107A=f107a, f107=f107, ap=ap)
-        flags = msise_flags()
-        out = msise_model(inp, flags)
-        dens = np.array(out.d)
-        temp = np.array(out.t)
-    except Exception:
-        return None
-
-    if dens.size < 8 or temp.size < 2:
-        return None
-
-    n_N2 = dens[2]
-    n_O2 = dens[3]
-    n_O = dens[1]
-    n_N = dens[7]
+    # NRLMSISE outputs number densities in cm^-3; convert to m^-3
+    n_N2 = dens[2] * 1e6
+    n_O2 = dens[3] * 1e6
+    n_O = dens[1] * 1e6
+    n_N = dens[7] * 1e6
     n_total = n_N2 + n_O2 + n_O + n_N
-    if n_total < 1e12:
-        scale = 1e6
-        n_N2 *= scale
-        n_O2 *= scale
-        n_O *= scale
-        n_N *= scale
 
     T_K = float(temp[1])
     return {
@@ -78,16 +57,8 @@ def get_neutral_atmosphere(
     f107=DEFAULT_MSIS_F107,
     f107a=DEFAULT_MSIS_F107A,
     ap=DEFAULT_MSIS_AP,
-    use_msise=True,
 ):
-    if not use_msise:
-        print("Warning: use_msise=False ignored. NRLMSISE00 is required for atmosphere data.")
-
-    msise = _try_msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap)
-    if msise is None:
-        print(f"Warning: NRLMSISE00 failed at altitude {altitude_km} km. Skipping atmosphere.")
-        return None
-
+    msise = _msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap)
     n_total = msise["N2"] + msise["N"] + msise["O2"] + msise["O"]
     msise["pressure_pa"] = float(n_total * k_B * msise["T_K"])
     return msise
@@ -99,7 +70,6 @@ def get_species_and_reactions(
     lat=DEFAULT_MSIS_LAT,
     lon=DEFAULT_MSIS_LON,
     date=DEFAULT_MSIS_DATE,
-    use_msise=True,
     ion_seed=1e8,
     electron_seed=1e10,
     compression_rate=4_000,
@@ -110,9 +80,7 @@ def get_species_and_reactions(
     species = Species([Specie("e", m_e, -e, 0, 3/2), Specie("N2", 4.65e-26, 0, 2, 5/2), Specie("N", 2.33e-26, 0, 1, 3/2), Specie("N2+", 4.65e-26, e, 2, 5/2), Specie("N+", 2.33e-26, e, 1, 3/2), Specie("O2+", 5.31e-26, e, 2, 5/2), Specie("O2", 5.31e-26, 0, 2, 5/2), Specie("O", 2.67e-26, 0, 1, 3/2), Specie("O+", 2.67e-26, e, 1, 3/2)])
 
     if atm is None:
-        atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date, use_msise=use_msise)
-    if atm is None:
-        return None, None, None, None
+        atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date)
 
     initial_state_dict = {
         "e": electron_seed,
