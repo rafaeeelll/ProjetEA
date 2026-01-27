@@ -76,14 +76,16 @@ def get_species_and_reactions(
     collection_rate=0.5,
     atm=None,
 ):
-    
-    species = Species([Specie("e", m_e, -e, 0, 3/2), Specie("N2", 4.65e-26, 0, 2, 5/2), Specie("N", 2.33e-26, 0, 1, 3/2), Specie("N2+", 4.65e-26, e, 2, 5/2), Specie("N+", 2.33e-26, e, 1, 3/2), Specie("O2+", 5.31e-26, e, 2, 5/2), Specie("O2", 5.31e-26, 0, 2, 5/2), Specie("O", 2.67e-26, 0, 1, 3/2), Specie("O+", 2.67e-26, e, 1, 3/2)])
+
+    species = Species([Specie("e", m_e, -e, 0, 3/2), Specie("Ar", 6.63e-26, 0, 1, 3/2), Specie("Ar+", 6.63e-26, e, 1, 3/2), Specie("N2", 4.65e-26, 0, 2, 5/2), Specie("N", 2.33e-26, 0, 1, 3/2), Specie("N2+", 4.65e-26, e, 2, 5/2), Specie("N+", 2.33e-26, e, 1, 3/2), Specie("O2+", 5.31e-26, e, 2, 5/2), Specie("O2", 5.31e-26, 0, 2, 5/2), Specie("O", 2.67e-26, 0, 1, 3/2), Specie("O+", 2.67e-26, e, 1, 3/2)])
 
     if atm is None:
         atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date)
 
     initial_state_dict = {
         "e": electron_seed,
+        "Ar" : 0.0,
+        "Ar+" : 0.0,
         "N2": atm["N2"],
         "N": atm["N"],
         "N2+": ion_seed,
@@ -105,6 +107,7 @@ def get_species_and_reactions(
     injection_rates[species.get_specie_by_name("N").index] = collection_rate * atm["N"] * chamber.V_chamber
     injection_rates[species.get_specie_by_name("O2").index] = collection_rate * atm["O2"] * chamber.V_chamber
     injection_rates[species.get_specie_by_name("O").index] = collection_rate * atm["O"] * chamber.V_chamber
+    injection_rates[species.get_specie_by_name("Ar").index] = 1e17
     #injection_rates = np.array([0.0, 3.2e18, 3.2e16, 0.0, 0.0, 0.0, 9.7e16, 4.3e18, 0.0])
 
     # initial_state = [3.07635e+09,  1.14872e+15,  5.71817e+13,  1.62203e+03,  1.14818e+03,  1.73333e+03,  4.91217e+13,  7.59081e+14,  1.22910e+03,  1.59358e+10,  1.08048e-01,  3.00124e-02]
@@ -148,6 +151,9 @@ def get_species_and_reactions(
     exc7_O = Excitation(species, "O", get_K_func(species, "O", "exc7_O"), 12, chamber)
     exc8_O = Excitation(species, "O", get_K_func(species, "O", "exc8_O"), 12, chamber)
     exc9_O = Excitation(species, "O", get_K_func(species, "O", "exc9_O"), 12, chamber)
+
+# Ar
+    exc1_Ar = Excitation(species, "Ar", get_K_func(species, "Ar", "exc1_Ar"), 11.5, chamber)
     
 #  █ ▄▀▄ █▄ █ █ ▄▀▀ ▄▀▄ ▀█▀ █ ▄▀▄ █▄ █
 #  █ ▀▄▀ █ ▀█ █ ▄██ █▀█  █  █ ▀▄▀ █ ▀█
@@ -155,6 +161,7 @@ def get_species_and_reactions(
     ion_N2 = Ionisation(species, "N2", "N2+", get_K_func(species, "N2", "ion_N2"), 15.60, chamber)
     ion_O2 = Ionisation(species, "O2", "O2+", get_K_func(species, "O2", "ion_O2"), 12.10, chamber)
     ion_O = Ionisation(species, "O", "O+", get_K_func(species,"O", "ion_O"), 13.60, chamber)
+    ion_Ar = Ionisation(species, "Ar", "Ar+", get_K_func(species, "Ar", "ion_Ar"), 15.76, chamber)
 
 #  ██▀ █   ▄▀▄ ▄▀▀ ▀█▀ █ ▄▀▀   ▄▀▀ ▄▀▄ █   █   █ ▄▀▀ █ ▄▀▄ █▄ █ ▄▀▀
 #  █▄▄ █▄▄ █▀█ ▄██  █  █ ▀▄▄   ▀▄▄ ▀▄▀ █▄▄ █▄▄ █ ▄██ █ ▀▄▀ █ ▀█ ▄██  # * complete
@@ -162,6 +169,7 @@ def get_species_and_reactions(
     ela_N = ElasticCollisionWithElectron(species, "N", get_K_func(species, "N", "ela_N"), chamber)
     ela_O = ElasticCollisionWithElectron(species, "O", get_K_func(species, "O", "ela_O"), chamber)
     ela_N2 = ElasticCollisionWithElectron(species, "N2", get_K_func(species, "N2", "ela_N2"), chamber)
+    ela_Ar = ElasticCollisionWithElectron(species, "Ar", get_K_func(species, "Ar", "ela_Ar"), chamber)
 
 
 #  █ █ █ ██▄ █▀▄ ▄▀▄ ▀█▀ █ ▄▀▄ █▄ █ ▄▀▄ █     ██▀ ▀▄▀ ▄▀▀ █ ▀█▀ ▄▀▄ ▀█▀ █ ▄▀▄ █▄ █
@@ -207,6 +215,7 @@ def get_species_and_reactions(
     kappa["N2"] = lambda T_i : 1.75*2.06e-4 * (e/k_B * T_i)**0.754 #2.06e-5 * (e/k_B * T_i)**0.754
     kappa["O"] =  lambda T_i : 1.75*4.41e-4 * (e/k_B * T_i)**0.679 #4.41e-5 * (e/k_B * T_i)**0.679
     kappa["O2"] = lambda T_i : 1.75*1.66e-4 * (e/k_B * T_i)**0.798 #1.66e-5 * (e/k_B * T_i)**0.798
+    kappa["Ar"] = lambda T_i : 1.75*3.59e-5 * (e/k_B * T_i)**0.72  #3.59e-6 * (e/k_B * T_i)**0.72
     #kappa = lambda T_i : 0.0
     th_diff = ThermicDiffusion(species, kappa, 0.03, chamber)
 
@@ -217,6 +226,7 @@ def get_species_and_reactions(
         exc1_N2, exc2_N2, exc3_N2, exc4_N2, exc5_N2, exc6_N2, exc7_N2, exc8_N2, exc9_N2, exc11_N2, exc12_N2, exc13_N2, exc14_N2, 
         exc1_N, exc2_N, exc1_O2, exc2_O2, exc3_O2, exc4_O2, 
         exc1_O, exc2_O, exc3_O, exc4_O, exc5_O, exc6_O, exc7_O, exc8_O, exc9_O,
+        exc1_Ar, ion_Ar, ela_Ar,
         *vib_exc_N2_list, *vib_exc_O2_list, *rot_exc_N2_list, *rot_exc_O2_list,   # * is used to unpack lists (similar to *args in functions)
         ela_N, ela_N2, ela_O, ela_O2, 
         ion_N, ion_O2, ion_N2, ion_O,
