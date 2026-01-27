@@ -107,12 +107,7 @@ def get_species_and_reactions(
     injection_rates[species.get_specie_by_name("N").index] = collection_rate * atm["N"] * chamber.V_chamber
     injection_rates[species.get_specie_by_name("O2").index] = collection_rate * atm["O2"] * chamber.V_chamber
     injection_rates[species.get_specie_by_name("O").index] = collection_rate * atm["O"] * chamber.V_chamber
-    injection_rates[species.get_specie_by_name("Ar").index] = 1e17
-    #injection_rates = np.array([0.0, 3.2e18, 3.2e16, 0.0, 0.0, 0.0, 9.7e16, 4.3e18, 0.0])
-
-    # initial_state = [3.07635e+09,  1.14872e+15,  5.71817e+13,  1.62203e+03,  1.14818e+03,  1.73333e+03,  4.91217e+13,  7.59081e+14,  1.22910e+03,  1.59358e+10,  1.08048e-01,  3.00124e-02]
-    # initial_state = [1e15, 5e14, 8e13, 1e10, 1e10, 1e10, 2e13, 1e15, 1e10, 4.0, 0.03, 0.03] # [e, N2, N, N2+, N+, O2+, O2, O, O+, T_e, T_monoatomique, T_diatomique]
-    #peut-être changer initial_state parce qu'il faut qu'il y ait un nb suffisant d'électrons
+    injection_rates[species.get_specie_by_name("Ar").index] = 1e17 * chamber.V_chamber  # arbitrary high argon injection
 
 
 #  ██▀ ▀▄▀ ▄▀▀ █ ▀█▀ ▄▀▄ ▀█▀ █ ▄▀▄ █▄ █
@@ -153,7 +148,7 @@ def get_species_and_reactions(
     exc9_O = Excitation(species, "O", get_K_func(species, "O", "exc9_O"), 12, chamber)
 
 # Ar
-    exc1_Ar = Excitation(species, "Ar", get_K_func(species, "Ar", "exc1_Ar"), 11.5, chamber)
+    exc1_Ar = Excitation(species, "Ar", get_K_func(species, "Ar", "exc_Ar"), 11.5, chamber)
     
 #  █ ▄▀▄ █▄ █ █ ▄▀▀ ▄▀▄ ▀█▀ █ ▄▀▄ █▄ █
 #  █ ▀▄▀ █ ▀█ █ ▄██ █▀█  █  █ ▀▄▀ █ ▀█
