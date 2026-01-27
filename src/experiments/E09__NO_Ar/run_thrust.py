@@ -9,9 +9,8 @@ import matplotlib.pyplot as plt
 from scipy.constants import pi
 
 
-# If global_model_package is not installed as package with pip install -e . , adds the global_model_package to the path so that it can be imported as a package
 try:
-    import global_model_package  # noqa: F401
+    import global_model_package
     print("'global_model_package' imported as pip package or already in sys.path.")
 except ModuleNotFoundError:
     global_model_package_path = Path(__file__).resolve().parent.parent.parent.joinpath("global_model_package")
