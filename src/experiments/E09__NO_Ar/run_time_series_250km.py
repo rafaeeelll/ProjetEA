@@ -48,6 +48,7 @@ species, initial_state, reactions_list, _ = get_species_and_reactions(
     lon=lon,
     date=date,
     atm=atm,
+    argon_injection_rate=1e17
 )
 
 electron_heating = ElectronHeatingConstantRFPower(species, power_w, chamber)

@@ -67,6 +67,7 @@ def get_neutral_atmosphere(
 def get_species_and_reactions(
     chamber,
     altitude,
+    argon_injection_rate,
     lat=DEFAULT_MSIS_LAT,
     lon=DEFAULT_MSIS_LON,
     date=DEFAULT_MSIS_DATE,
@@ -74,7 +75,6 @@ def get_species_and_reactions(
     electron_seed=2.1e12,
     compression_rate=4000,
     collection_rate=0.5,
-    argon_injection_rate=1e17,
     atm=None,
 ):
 

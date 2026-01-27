@@ -25,7 +25,7 @@ from reaction_set_N_et_O import get_species_and_reactions, get_neutral_atmospher
 
 
 # --- Sweep settings ---
-altitudes_km = np.arange(150, 301, 10)
+altitudes_km = np.arange(150, 260, 10)
 power_w = 1000
 
 # --- MSIS defaults (arbitrary) ---
@@ -104,7 +104,7 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
 
         try:
             print(f"Solving model for altitude={altitude} km...")
-            sol = model.solve(0, 1, initial_state)
+            sol = model.solve(0, 1e-2, initial_state)
             print("Model resolved!")
         except Exception as exception:
             print("Entering exception...")
@@ -124,7 +124,7 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
         results[case_key]["total_thrust_N"].append(float(total_thrust))
 
 
-run_case(argon_injection_rate=1e17, case_key="with_argon", case_label="With Argon")
+run_case(argon_injection_rate=1e18, case_key="with_argon", case_label="With Argon")
 run_case(argon_injection_rate=0.0, case_key="without_argon", case_label="Without Argon")
 
 with open(log_folder_path.joinpath("thrust_vs_altitude.json"), "w") as file:
