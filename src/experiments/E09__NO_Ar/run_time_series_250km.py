@@ -21,8 +21,8 @@ from reaction_set_N_et_O import get_species_and_reactions, get_neutral_atmospher
 
 
 altitude_km = 250
-power_w = 3000
-t0, tf = 0.0, 1.0
+power_w = 1000
+t0, tf = 0.0, 1e-2
 
 date = datetime(2020, 1, 1, 12, 0, 0)
 lat = 0.0
@@ -47,8 +47,6 @@ species, initial_state, reactions_list, _ = get_species_and_reactions(
     lat=lat,
     lon=lon,
     date=date,
-    ion_seed=1e15,
-    electron_seed=1e20,
     atm=atm,
 )
 
@@ -102,4 +100,5 @@ lines_3, labels_3 = ax3.get_legend_handles_labels()
 ax2.legend(lines_2 + lines_3, labels_2 + labels_3, loc="best", fontsize=8)
 
 plt.tight_layout()
-plt.savefig(log_folder_path.joinpath("species_and_temperature_vs_time_250km.pdf"), bbox_inches="tight")
+#plt.savefig(log_folder_path.joinpath("species_and_temperature_vs_time_250km.pdf"), bbox_inches="tight")
+plt.show()

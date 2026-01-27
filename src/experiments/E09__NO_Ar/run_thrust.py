@@ -54,9 +54,16 @@ os.makedirs(log_folder_path, exist_ok=True)
 
 results = {
     "altitudes_km": [],
-    "ion_thrust_N": [],
-    "neutral_thrust_N": [],
-    "total_thrust_N": [],
+    "with_argon": {
+        "ion_thrust_N": [],
+        "neutral_thrust_N": [],
+        "total_thrust_N": [],
+    },
+    "without_argon": {
+        "ion_thrust_N": [],
+        "neutral_thrust_N": [],
+        "total_thrust_N": [],
+    },
     "power_w": power_w,
     "msis_date": date.isoformat(),
     "msis_lat": lat,
@@ -66,61 +73,84 @@ results = {
     "beta_g": config_dict["beta_g"],
 }
 
-for altitude in altitudes_km:
-    atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date)
 
-    chamber = Chamber(config_dict)
+def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> None:
+    print(f"\n=== Running case: {case_label} (argon_injection_rate={argon_injection_rate:.2e}) ===")
+    for altitude in altitudes_km:
+        atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date)
+        chamber = Chamber(config_dict)
 
-    species, initial_state, reactions_list, _ = get_species_and_reactions(
-        chamber,
-        altitude,
-        lat=lat,
-        lon=lon,
-        date=date,
-        ion_seed=1e10,
-        electron_seed=1e12,
-        atm=atm,
-    )
+        species, initial_state, reactions_list, _ = get_species_and_reactions(
+            chamber,
+            altitude,
+            lat=lat,
+            lon=lon,
+            date=date,
+            ion_seed=1e10,
+            electron_seed=1e12,
+            argon_injection_rate=argon_injection_rate,
+            atm=atm,
+        )
 
-    electron_heating = ElectronHeatingConstantRFPower(species, power_w, chamber)
-    model = GlobalModel(
-        species,
-        reactions_list,
-        chamber,
-        electron_heating,
-        simulation_name=f"NO_Ar_thrust_alt_{altitude}km",
-        log_folder_path=log_folder_path,
-    )
+        electron_heating = ElectronHeatingConstantRFPower(species, power_w, chamber)
+        model = GlobalModel(
+            species,
+            reactions_list,
+            chamber,
+            electron_heating,
+            simulation_name=f"NO_Ar_{case_key}_alt_{altitude}km",
+            log_folder_path=log_folder_path,
+        )
 
-    try:
-        print(f"Solving model for altitude={altitude} km...")
-        sol = model.solve(0, 1, initial_state)
-        print("Model resolved!")
-    except Exception as exception:
-        print("Entering exception...")
-        model.var_tracker.save_tracked_variables()
-        print("Variables saved")
-        raise exception
+        try:
+            print(f"Solving model for altitude={altitude} km...")
+            sol = model.solve(0, 1, initial_state)
+            print("Model resolved!")
+        except Exception as exception:
+            print("Entering exception...")
+            model.var_tracker.save_tracked_variables()
+            print("Variables saved")
+            raise exception
 
-    final_state = sol.y[:, -1]
-    ion_thrust = model.total_ion_thrust(final_state)
-    neutral_thrust = model.total_neutral_thrust(final_state)
-    total_thrust = model.total_thrust(final_state)
+        final_state = sol.y[:, -1]
+        ion_thrust = model.total_ion_thrust(final_state)
+        neutral_thrust = model.total_neutral_thrust(final_state)
+        total_thrust = model.total_thrust(final_state)
 
-    results["altitudes_km"].append(float(altitude))
-    results["ion_thrust_N"].append(float(ion_thrust))
-    results["neutral_thrust_N"].append(float(neutral_thrust))
-    results["total_thrust_N"].append(float(total_thrust))
+        if case_key == "with_argon":
+            results["altitudes_km"].append(float(altitude))
+        results[case_key]["ion_thrust_N"].append(float(ion_thrust))
+        results[case_key]["neutral_thrust_N"].append(float(neutral_thrust))
+        results[case_key]["total_thrust_N"].append(float(total_thrust))
+
+
+run_case(argon_injection_rate=1e17, case_key="with_argon", case_label="With Argon")
+run_case(argon_injection_rate=0.0, case_key="without_argon", case_label="Without Argon")
 
 with open(log_folder_path.joinpath("thrust_vs_altitude.json"), "w") as file:
     json.dump(results, file, indent=2)
 
-plt.plot(results["altitudes_km"], results["ion_thrust_N"], marker="o", label="Ion thrust")
-plt.plot(results["altitudes_km"], results["total_thrust_N"], marker="s", label="Total thrust")
+alts = results["altitudes_km"]
+plt.plot(alts, results["with_argon"]["ion_thrust_N"], marker="o", label="Ion thrust (Ar)")
+plt.plot(alts, results["with_argon"]["total_thrust_N"], marker="s", label="Total thrust (Ar)")
+plt.plot(
+    alts,
+    results["without_argon"]["ion_thrust_N"],
+    marker="o",
+    linestyle="--",
+    label="Ion thrust (no Ar)",
+)
+plt.plot(
+    alts,
+    results["without_argon"]["total_thrust_N"],
+    marker="s",
+    linestyle="--",
+    label="Total thrust (no Ar)",
+)
 plt.xlabel("Altitude (km)")
 plt.ylabel("Thrust (N)")
-plt.title("Thrust vs Altitude")
+plt.title("Thrust vs Altitude (With vs Without Argon)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig(log_folder_path.joinpath("thrust_vs_altitude.pdf"), bbox_inches="tight")
+plt.show()

@@ -71,9 +71,10 @@ def get_species_and_reactions(
     lon=DEFAULT_MSIS_LON,
     date=DEFAULT_MSIS_DATE,
     ion_seed=1e8,
-    electron_seed=1e20,
-    compression_rate=4_000,
+    electron_seed=2.1e12,
+    compression_rate=4000,
     collection_rate=0.5,
+    argon_injection_rate=1e17,
     atm=None,
 ):
 
@@ -84,8 +85,8 @@ def get_species_and_reactions(
 
     initial_state_dict = {
         "e": electron_seed,
-        "Ar" : 0.0,
-        "Ar+" : 0.0,
+        "Ar" : 1e14,
+        "Ar+" : ion_seed,
         "N2": atm["N2"],
         "N": atm["N"],
         "N2+": ion_seed,
@@ -100,14 +101,27 @@ def get_species_and_reactions(
     }
     print(initial_state_dict)
 
-    initial_state =  [compression_rate * initial_state_dict[specie.name] for specie in species.species] + [initial_state_dict["T_e"], initial_state_dict["T_mono"], initial_state_dict["T_diato"]]
+    # Apply compression to neutrals only; compressing electron seeds makes
+    # eps_p extremely negative and breaks RF power absorption (NaNs).
+    initial_densities = []
+    for sp in species.species:
+        base_density = initial_state_dict[sp.name]
+        if sp.charge == 0 and sp.name != "e":
+            initial_densities.append(compression_rate * base_density)
+        else:
+            initial_densities.append(base_density)
+    initial_state = initial_densities + [
+        initial_state_dict["T_e"],
+        initial_state_dict["T_mono"],
+        initial_state_dict["T_diato"],
+    ]
     
     injection_rates = np.zeros(species.nb)
-    injection_rates[species.get_specie_by_name("N2").index] = collection_rate * atm["N2"] * chamber.V_chamber
-    injection_rates[species.get_specie_by_name("N").index] = collection_rate * atm["N"] * chamber.V_chamber
-    injection_rates[species.get_specie_by_name("O2").index] = collection_rate * atm["O2"] * chamber.V_chamber
-    injection_rates[species.get_specie_by_name("O").index] = collection_rate * atm["O"] * chamber.V_chamber
-    injection_rates[species.get_specie_by_name("Ar").index] = 1e17 * chamber.V_chamber  # arbitrary high argon injection
+    injection_rates[species.get_specie_by_name("N2").index] = collection_rate * atm["N2"] *compression_rate
+    injection_rates[species.get_specie_by_name("N").index] = collection_rate * atm["N"] *compression_rate
+    injection_rates[species.get_specie_by_name("O2").index] = collection_rate * atm["O2"]*compression_rate
+    injection_rates[species.get_specie_by_name("O").index] = collection_rate * atm["O"]*compression_rate
+    injection_rates[species.get_specie_by_name("Ar").index] = argon_injection_rate
 
 
 #  ██▀ ▀▄▀ ▄▀▀ █ ▀█▀ ▄▀▄ ▀█▀ █ ▄▀▄ █▄ █
