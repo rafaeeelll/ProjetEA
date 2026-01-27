@@ -26,23 +26,24 @@ from reaction_set_N_et_O import get_species_and_reactions, get_neutral_atmospher
 
 # --- Sweep settings ---
 altitudes_km = np.arange(150, 301, 10)
-power_w = 3000
+power_w = 1000
 
 # --- MSIS defaults (arbitrary) ---
 date = datetime(2020, 1, 1, 12, 0, 0)
 lat = 0.0
 lon = 0.0
 
-# --- Target pressure from average at 250 km ---
+# --- Reference atmosphere at 250 km ---
 atm_ref = get_neutral_atmosphere(250, lat=lat, lon=lon, date=date)
-target_pressure = max(atm_ref["pressure_pa"], 1e-3)
-print(f"Using target_pressure={target_pressure:.3e} Pa (source={atm_ref.get('source')})")
+print(f"Reference MSIS pressure at 250 km: {atm_ref['pressure_pa']:.3e} Pa")
 
-# --- Chamber config (target pressure mode) ---
+# --- Chamber config (gridded thruster mode) ---
 config_dict = {
     "R": 6e-2,
     "L": 10e-2,
-    "target_pressure": target_pressure,
+    "V_grid": 1000,
+    "beta_i": 0.7,
+    "beta_g": 0.3,
     "omega": 13.56e6 * 2 * pi,
     "N": 5,
     "R_coil": 2,
@@ -57,20 +58,18 @@ results = {
     "neutral_thrust_N": [],
     "total_thrust_N": [],
     "power_w": power_w,
-    "target_pressure_pa": target_pressure,
     "msis_date": date.isoformat(),
     "msis_lat": lat,
     "msis_lon": lon,
+    "V_grid": config_dict["V_grid"],
+    "beta_i": config_dict["beta_i"],
+    "beta_g": config_dict["beta_g"],
 }
 
 for altitude in altitudes_km:
     atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date)
 
     chamber = Chamber(config_dict)
-    # Provide grid parameters for thrust computation only
-    chamber.V_grid = 1000
-    chamber.beta_i = 0.7
-    chamber.beta_g = 0.3
 
     species, initial_state, reactions_list, _ = get_species_and_reactions(
         chamber,

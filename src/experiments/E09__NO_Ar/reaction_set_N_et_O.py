@@ -6,7 +6,7 @@ from datetime import datetime
 from global_model_package.reactions import (Excitation, Ionisation, Dissociation, 
                 VibrationalExcitation, RotationalExcitation,
                 ThermicDiffusion, InelasticCollision, ElasticCollisionWithElectron, 
-                PressureBalanceFluxToWalls, GasInjection,
+                FluxToWallsAndThroughGrids, GasInjection,
                 ElectronHeatingConstantRFPower, ElectronHeatingConstantAbsorbedPower
             )
 
@@ -71,7 +71,7 @@ def get_species_and_reactions(
     lon=DEFAULT_MSIS_LON,
     date=DEFAULT_MSIS_DATE,
     ion_seed=1e8,
-    electron_seed=1e10,
+    electron_seed=1e20,
     compression_rate=4_000,
     collection_rate=0.5,
     atm=None,
@@ -187,7 +187,7 @@ def get_species_and_reactions(
 
 #  █▀ █   █ █ ▀▄▀ ██▀ ▄▀▀   ▀█▀ ▄▀▄   ▀█▀ █▄█ ██▀   █   █ ▄▀▄ █   █   ▄▀▀   ▄▀▄ █▄ █ █▀▄   ▀█▀ █▄█ █▀▄ ▄▀▄ █ █ ▄▀  █▄█   ▀█▀ █▄█ ██▀   ▄▀  █▀▄ █ █▀▄ ▄▀▀
 #  █▀ █▄▄ ▀▄█ █ █ █▄▄ ▄██    █  ▀▄▀    █  █ █ █▄▄   ▀▄▀▄▀ █▀█ █▄▄ █▄▄ ▄██   █▀█ █ ▀█ █▄▀    █  █ █ █▀▄ ▀▄▀ ▀▄█ ▀▄█ █ █    █  █ █ █▄▄   ▀▄█ █▀▄ █ █▄▀ ▄██
-    out_flux = PressureBalanceFluxToWalls(species, chamber)
+    out_flux = FluxToWallsAndThroughGrids(species, chamber)
 
 
 #  ▄▀  ▄▀▄ ▄▀▀   █ █▄ █   █ ██▀ ▄▀▀ ▀█▀ █ ▄▀▄ █▄ █

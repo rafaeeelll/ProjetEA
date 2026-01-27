@@ -51,14 +51,31 @@ class ThermicDiffusion(Reaction):
         rate = np.zeros(3)
         lambda_0 = self.chamber.R/2.405 + self.chamber.L/np.pi
 
-        for sp in self.species.species[1:] : 
-            if sp.charge == 0:
-                rate[sp.nb_atoms] -= self.kappa[sp.name](state[self.species.nb+sp.nb_atoms]) * e * (state[self.species.nb+sp.nb_atoms] - self.temp_wall) * self.chamber.S_total/(k_B *lambda_0*self.chamber.V_chamber)
+        for sp in self.species.species[1:]:
+            if sp.charge != 0:
+                continue
+
+            # Backward-compatible handling: some experiments pass a single
+            # callable kappa, others a dict keyed by species name.
+            if callable(self.kappa):
+                kappa_func = self.kappa
+            else:
+                kappa_func = self.kappa.get(sp.name)
+                if kappa_func is None:
+                    continue
+
+            T_sp = state[self.species.nb + sp.nb_atoms]
+            rate[sp.nb_atoms] -= (
+                kappa_func(T_sp)
+                * e
+                * (T_sp - self.temp_wall)
+                * self.chamber.S_total
+                / (k_B * lambda_0 * self.chamber.V_chamber)
+            )
 
         self.var_tracker.add_value_to_variable_list('energy_change_thermic_diffusion', rate) # type: ignore
 
         return rate
-
 
 
 
