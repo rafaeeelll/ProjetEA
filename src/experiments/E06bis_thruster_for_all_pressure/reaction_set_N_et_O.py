@@ -88,6 +88,8 @@ def get_species_and_reactions(chamber, altitude):
     exc7_O = Excitation(species, "O", get_K_func(species, "O", "exc7_O"), 12, chamber)
     exc8_O = Excitation(species, "O", get_K_func(species, "O", "exc8_O"), 12, chamber)
     exc9_O = Excitation(species, "O", get_K_func(species, "O", "exc9_O"), 12, chamber)
+
+# Ar
     
 #  █ ▄▀▄ █▄ █ █ ▄▀▀ ▄▀▄ ▀█▀ █ ▄▀▄ █▄ █
 #  █ ▀▄▀ █ ▀█ █ ▄██ █▀█  █  █ ▀▄▀ █ ▀█
