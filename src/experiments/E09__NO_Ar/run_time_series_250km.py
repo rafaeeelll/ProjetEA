@@ -23,6 +23,7 @@ from reaction_set_N_et_O import get_species_and_reactions, get_neutral_atmospher
 altitude_km = 250
 power_w = 1000
 t0, tf = 0.0, 1e-2
+fast_mode = True
 
 date = datetime(2020, 1, 1, 12, 0, 0)
 lat = 0.0
@@ -62,6 +63,7 @@ model = GlobalModel(
     electron_heating,
     simulation_name="E09_time_series_250km",
     log_folder_path=log_folder_path,
+    fast =fast_mode,
 )
 
 sol = model.solve(t0, tf, initial_state)

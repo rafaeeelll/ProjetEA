@@ -99,6 +99,7 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
             electron_heating,
             simulation_name=f"NO_Ar_{case_key}_alt_{altitude}km",
             log_folder_path=log_folder_path,
+            fast=False,
         )
 
         try:

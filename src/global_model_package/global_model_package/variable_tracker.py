@@ -10,14 +10,17 @@ SAVE_FREQUENCY = None # None if no intermediate save
 
 class VariableTracker:
 
-    def __init__(self, log_folder_path, log_file_name):
+    def __init__(self, log_folder_path, log_file_name, enabled: bool = True):
         self.log_folder_path = log_folder_path
         self.file_name = log_file_name
         self.log_file_path = os.path.join(log_folder_path, log_file_name)
         self.tracked_variables = {}
         self.step_number = 0
+        self.enabled = enabled
 
     def add_value_to_variable(self, key, value):
+        if not self.enabled:
+            return
         if key in self.tracked_variables:
             self.tracked_variables[key].append(value)
         else:
@@ -30,10 +33,14 @@ class VariableTracker:
                 self.save_tracked_variables(filename=self.file_name+"_temp_1")
 
     def add_value_to_variable_list(self, prefix: str, values: list[float] | NDArray[np.float64], suffix=""):
+        if not self.enabled:
+            return
         for i in range(len(values)):
             self.add_value_to_variable(prefix+str(i)+suffix, values[i])
 
     def add_all_densities_and_temperatures(self, state, species: Species, prefix=""):
+        if not self.enabled:
+            return
         for i, specie in enumerate(species.species):
             self.add_value_to_variable(prefix + specie.name+"_density", state[i])
         for i in range(len(state) - species.nb):
@@ -41,6 +48,8 @@ class VariableTracker:
 
     def save_tracked_variables(self, filename=None):
         """Save in json file"""
+        if not self.enabled:
+            return
         if filename is not None :
             log_file_path = os.path.join(self.log_folder_path, filename)
         else:

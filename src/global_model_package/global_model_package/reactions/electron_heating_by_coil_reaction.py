@@ -187,7 +187,7 @@ class ElectronHeatingConstantRFPower(ElectronHeating):
 
         delivered_power = self.power_RF if time > 0 else self.power_RF * (0.01 + (time / 1e-2)**3)
 
-        absorbed_power = R_ind * min(delivered_power / (R_ind + self.chamber.R_coil), 250)
+        absorbed_power = R_ind * min(delivered_power / (R_ind + self.chamber.R_coil), 500)
         self.var_tracker.add_value_to_variable("power_transfer_efficiency", R_ind / (R_ind + self.chamber.R_coil))
         self.var_tracker.add_value_to_variable("absorbed_power", absorbed_power)
         self.var_tracker.add_value_to_variable("Icoil", np.sqrt(delivered_power  / (R_ind + self.chamber.R_coil)))
