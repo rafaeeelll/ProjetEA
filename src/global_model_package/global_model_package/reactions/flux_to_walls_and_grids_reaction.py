@@ -32,11 +32,9 @@ class FluxToWallsAndThroughGrids(Reaction):
     def n_g_tot (self, state) :
         '''total density of neutral gases'''
         total = 0
-        #for i in(range(len(state)/2)) :
-        for i in range(self.species.nb):
-            # if self.species.species[i].charge == 0:
-            #     total += state[i]
-            total += state[i]
+        for sp in self.species.species:
+            if sp.charge == 0:
+                total += state[sp.index]
         return total
     
     def phi_sheath(self, state, beta_grid_ions):

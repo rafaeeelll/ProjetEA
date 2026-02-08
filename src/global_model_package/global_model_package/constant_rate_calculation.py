@@ -19,6 +19,39 @@ from .specie import Specie, Species
 #from specie import Specie, Species
 
 #ReacRateType = TypeVar("ReacRateType", bound="ReactionRateConstant")
+_CROSS_SECTION_CACHE: dict[Path, tuple[NDArray[np.float64], NDArray[np.float64]]] = {}
+
+
+def _extend_energy_grid(
+    energy_eV: NDArray[np.float64],
+    cross_section: NDArray[np.float64],
+    target_max_eV: float,
+    n_extra: int = 100,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Extends the energy grid with a flat-tail cross section up to target_max_eV."""
+    current_max = float(np.max(energy_eV))
+    if target_max_eV <= current_max:
+        return energy_eV, cross_section
+
+    if current_max > 0.0:
+        extra_energy = np.geomspace(current_max * (1.0 + 1e-12), target_max_eV, n_extra)
+    else:
+        extra_energy = np.linspace(1e-12, target_max_eV, n_extra)
+
+    extended_energy = np.concatenate([energy_eV, extra_energy])
+    extended_cs = np.concatenate([cross_section, np.full(extra_energy.shape, cross_section[-1], dtype=float)])
+    return extended_energy, extended_cs
+
+
+def _load_cross_section_cached(cross_sec_path: Path) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    cached = _CROSS_SECTION_CACHE.get(cross_sec_path)
+    if cached is not None:
+        return cached
+    e_r, cs_r = load_cross_section(cross_sec_path)
+    arr_e = np.asarray(e_r, dtype=float)
+    arr_cs = np.asarray(cs_r, dtype=float)
+    _CROSS_SECTION_CACHE[cross_sec_path] = (arr_e, arr_cs)
+    return arr_e, arr_cs
 
 
 class ReactionRateConstant(object):
@@ -43,15 +76,14 @@ class ReactionRateConstant(object):
     
     def __call__(self, state: NDArray[np.float64]) -> float:
         """Calculates the reaction rate constant for a given state, which must be a NDArray[np.float]"""
-        #T = T_e * k / e
         T_e = state[self.species.nb]
-        # If the table of energy - cross sections doesn't go to high enough temperatures, it is extended by considering that for higher temperatures the cross section stay the same
-        if 10 * e * T_e > np.max(self.energy_list):
-            self.energy_list = np.append(self.energy_list, np.logspace(np.max(self.energy_list), 10 * e * T_e, 100))
-            self.cross_section_list = np.append(self.cross_section_list, [self.cross_section_list[-1]]*100)
-        v = np.sqrt(2 * self.energy_list * e / m_e)  # electrons speed
+        if T_e <= 0.0:
+            return 0.0
+        # Energy table is in eV and Te is in eV. Extend with a flat cross-section tail if needed.
+        energy_eV, cross_section = _extend_energy_grid(self.energy_list, self.cross_section_list, 10.0 * T_e)
+        v = np.sqrt(2 * energy_eV * e / m_e)  # electrons speed
         a = (m_e / (2 * np.pi * e * T_e))**(3/2) * 4 * np.pi
-        f = self.cross_section_list * v**3 * np.exp(- m_e * v**2 / (2 * e * T_e)) 
+        f = cross_section * v**3 * np.exp(- m_e * v**2 / (2 * e * T_e))
         k_rate: float = trapezoid(a*f, x=v)
         return k_rate
 
@@ -189,10 +221,11 @@ class ReactionRateConstant(object):
 
 def rate_constant(T_e, E, cs, m):
     """Calculates a reaction rate constant """
-    #T = T_e * k / e
-    if 10 * e * T_e > np.max(E):
-        E = np.append(E, np.logspace(np.max(E), 10 * e * T_e, 100))
-        cs = np.append(cs, [cs[-1]]*100)
+    if T_e <= 0.0:
+        return 0.0
+    E = np.asarray(E, dtype=float)
+    cs = np.asarray(cs, dtype=float)
+    E, cs = _extend_energy_grid(E, cs, 10.0 * T_e)
     v = np.sqrt(2 * E * e / m)  # electrons speed
     a = (m / (2 * np.pi * e * T_e))**(3/2) * 4 * np.pi
     f = cs * v**3 * np.exp(- m * v**2 / (2 * e * T_e)) 
@@ -203,10 +236,11 @@ def rate_constant(T_e, E, cs, m):
 def get_K_func(species,specie:str,reaction:str):
     """ specie: string, the specie involved (N, N2 or O2, O)
         reaction: string, the type of reaction (ion_N,exc1_O,...) """
+    cross_sec_path = Path(__file__).resolve().parent.parent.parent.parent.joinpath(f"cross_sections/{specie}/{reaction}.csv")
+    e_r, cs_r = _load_cross_section_cached(cross_sec_path)
+
     def get_K(state):
         T_e = state[species.nb]
-        cross_sec_path =  Path(__file__).resolve().parent.parent.parent.parent.joinpath(f"cross_sections/{specie}/{reaction}.csv")
-        e_r,cs_r=load_cross_section(cross_sec_path)
         k_rate=rate_constant(T_e,e_r,cs_r,m_e) #si on considère que T_e en première approx
         return k_rate 
     return get_K

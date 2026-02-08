@@ -52,18 +52,11 @@ def _load_dataset(path: Path) -> tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
-def _load_model(path: Path) -> tuple[RBFInterpolator, np.ndarray, np.ndarray]:
+def _load_model_hyperparams(path: Path) -> tuple[str, float, int]:
     if not path.exists():
         raise FileNotFoundError(f"Missing model: {path}")
     data = np.load(path)
-    rbf = RBFInterpolator(
-        data["Xs"],
-        data["y"],
-        kernel=str(data["kernel"]),
-        smoothing=float(data["smoothing"]),
-        neighbors=int(data["neighbors"]),
-    )
-    return rbf, data["x_mean"], data["x_std"]
+    return str(data["kernel"]), float(data["smoothing"]), int(data["neighbors"])
 
 
 def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
@@ -79,18 +72,38 @@ def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 def main() -> None:
     X, y = _load_dataset(DATASET_PATH)
     n = X.shape[0]
+    if n < 3:
+        raise ValueError("Dataset too small for train/validation split.")
     rng = np.random.default_rng(42)
     idx = np.arange(n)
     rng.shuffle(idx)
     split = int(0.8 * n)
+    split = min(max(split, 1), n - 1)
     train_idx = idx[:split]
     val_idx = idx[split:]
 
-    rbf, x_mean, x_std = _load_model(MODEL_PATH)
-    Xs = (X - x_mean) / x_std
-
-    y_pred = rbf(Xs[val_idx])
+    kernel, smoothing, neighbors = _load_model_hyperparams(MODEL_PATH)
+    X_train = X[train_idx]
+    y_train = y[train_idx]
+    X_val = X[val_idx]
     y_true = y[val_idx]
+
+    x_mean = X_train.mean(axis=0)
+    x_std = X_train.std(axis=0)
+    x_std[x_std == 0.0] = 1.0
+
+    Xs_train = (X_train - x_mean) / x_std
+    Xs_val = (X_val - x_mean) / x_std
+
+    rbf = RBFInterpolator(
+        Xs_train,
+        y_train,
+        kernel=kernel,
+        smoothing=smoothing,
+        neighbors=neighbors,
+    )
+
+    y_pred = rbf(Xs_val)
 
     metrics = _metrics(y_true, y_pred)
     print("Validation metrics:", metrics)

@@ -63,90 +63,97 @@ class GlobalModel:
             prop[i] = func(sol[i])
         return prop       
     
-    def f_dy(self, t: float, state: NDArray[np.float64], energy_modifier_func: Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None=None, temp_modifier_func: Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None=None):
-        """Returns the derivative of the vector 'state' describing the state of plasma.
-            'state' has format : [n_e, n_N2, ..., n_N+, T_e, T_monoato, ..., T_diato]"""
-        for idx, var in enumerate(state[:self.species.nb]):
-            if var < 0:
-                print(f"Warning : Negative density in state at t={t}: {state}")
-                state[idx] = 0.0
-        for var in state[self.species.nb:]:
-            if var < 0:
-                return state * 0.
-                #raise ValueError(f"Negative temperature in state at t={t}: {state}")
+    def _compute_dy(
+        self,
+        t: float,
+        state: NDArray[np.float64],
+        energy_modifier_func: Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None = None,
+        temp_modifier_func: Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None = None,
+        track_values: bool = True,
+    ) -> NDArray[np.float64]:
+        """Internal RHS evaluator. Uses a sanitized local copy of state and never mutates the solver state."""
+        state_safe = np.array(state, dtype=float, copy=True)
+        densities = np.maximum(state_safe[:self.species.nb], 0.0)
+        if np.any(state_safe[:self.species.nb] < 0.0) and not self.fast and track_values:
+            print(f"Warning : Negative density in state at t={t}: {state}")
+        temp = state_safe[self.species.nb:]
+        if np.any(temp < 0.0):
+            return np.zeros_like(state_safe)
+
+        state_eval = np.concatenate([densities, temp])
 
         try:
-            densities = state[:self.species.nb]
-            temp = state[self.species.nb:]
-
-            dy = np.zeros(state.shape)
+            dy = np.zeros(state_safe.shape)
             dy_densities = np.zeros(self.species.nb)
             dy_energies = np.zeros(3)
 
             collision_frequency = 0.0
             for reac in self.reaction_set:
-                dy_densities += reac.density_change_rate(state)
-                dy_energies += reac.energy_change_rate(state)
-                if isinstance(reac, GeneralElasticCollision) :
-                    sp, freq = reac.colliding_specie_and_collision_frequency(state)
+                dy_densities += reac.density_change_rate(state_eval)
+                dy_energies += reac.energy_change_rate(state_eval)
+                if isinstance(reac, GeneralElasticCollision):
+                    _, freq = reac.colliding_specie_and_collision_frequency(state_eval)
                     collision_frequency += freq
 
-            if not self.fast:
+            if not self.fast and track_values:
                 self.var_tracker.add_value_to_variable("collision_frequency", collision_frequency)
-            # Energy given to the electrons via the coil
-            volumic_power_absorbed = self.electron_heating.absorbed_power(state, collision_frequency, t) / self.chamber.V_chamber
+
+            volumic_power_absorbed = self.electron_heating.absorbed_power(state_eval, collision_frequency, t) / self.chamber.V_chamber
             dy_energies[0] += volumic_power_absorbed
-            if not self.fast:
+            if not self.fast and track_values:
                 self.var_tracker.add_value_to_variable('p_abs', volumic_power_absorbed)
+
             dy[:self.species.nb] = dy_densities
             dy[self.species.nb:] = dy_energies
             if energy_modifier_func is not None:
-                dy = energy_modifier_func(t, state, dy)
+                dy = energy_modifier_func(t, state_eval, dy)
                 dy_densities = dy[:self.species.nb]
                 dy_energies = dy[self.species.nb:]
-            if not self.fast:
+
+            if not self.fast and track_values:
                 self.var_tracker.add_value_to_variable_list("dy_energy_", dy_energies, "_atom")
-            # total thermal capacity (in Joule / eV ) of all species with same number of atoms : sum of (3/2 or 5/2 * e * density)
-            # here E = total_thermal_capacity * T (in eV)
+
             total_thermal_capacity_by_sp_type = np.zeros(3)
             dy_total_thermal_capacity_by_sp_type = np.zeros(3)
-            for sp in self.species.species :
+            for sp in self.species.species:
                 total_thermal_capacity_by_sp_type[sp.nb_atoms] += sp.thermal_capacity * e * densities[sp.index]
                 dy_total_thermal_capacity_by_sp_type[sp.nb_atoms] += sp.thermal_capacity * e * dy_densities[sp.index]
-            
-            #Transform derivative of energy into derivative of temperature
+
             dy_temp = (dy_energies - temp * dy_total_thermal_capacity_by_sp_type) / total_thermal_capacity_by_sp_type
 
             dy[:self.species.nb] = dy_densities
             dy[self.species.nb:] = np.nan_to_num(dy_temp, nan=0.0)
 
-            if not self.fast:
+            # Prevent unphysical depletion below zero while keeping a smooth RHS elsewhere.
+            dy[:self.species.nb] = np.where(densities <= 0.0, np.maximum(dy[:self.species.nb], 0.0), dy[:self.species.nb])
+
+            if not self.fast and track_values:
                 self.var_tracker.add_value_to_variable("time", t)
-                self.var_tracker.add_all_densities_and_temperatures(state, self.species)
+                self.var_tracker.add_all_densities_and_temperatures(state_eval, self.species)
                 self.var_tracker.add_all_densities_and_temperatures(dy, self.species, prefix="dy_")
                 energies = total_thermal_capacity_by_sp_type * temp
                 self.var_tracker.add_value_to_variable_list("energy_", energies, "_atom")
-                self.var_tracker.add_value_to_variable('h_L', self.chamber.h_L(self.n_g_tot(state)))
-                self.var_tracker.add_value_to_variable('h_R', self.chamber.h_R(self.n_g_tot(state)))
-            # self.var_tracker.add_value_to_variable('total_ion_thrust', self.total_ion_thrust(state))
-            # self.var_tracker.add_value_to_variable('total_neutral_thrust', self.total_neutral_thrust(state))
-            # self.var_tracker.add_value_to_variable('total_thrust', self.total_thrust(state))
-            # self.var_tracker.add_value_to_variable('u_B', self.chamber.u_B(state[self.species.nb],2.18e-25))
-            # self.var_tracker.add_value_to_variable('ion_current', self.total_ion_current(state))
-            if not self.fast:
-                string = ( f"\nt={t:15.9e}"
-                    + "\n       " + " ".join([f"{val.name:^12}" for val in self.species.species]) + " " +  " ".join([f"{val:^12}" for val in ["Te", "Tmono", "Tdiato"]])
-                    + "\nstate :" + " ".join([f"{val:12.5e}" for val in state])
-                    + "\n  dy  :" + " ".join([f"{val:12.5e}" for val in dy]) )
+                self.var_tracker.add_value_to_variable('h_L', self.chamber.h_L(self.n_g_tot(state_eval)))
+                self.var_tracker.add_value_to_variable('h_R', self.chamber.h_R(self.n_g_tot(state_eval)))
+                string = (
+                    f"\nt={t:15.9e}"
+                    + "\n       " + " ".join([f"{val.name:^12}" for val in self.species.species]) + " " + " ".join([f"{val:^12}" for val in ["Te", "Tmono", "Tdiato"]])
+                    + "\nstate :" + " ".join([f"{val:12.5e}" for val in state_eval])
+                    + "\n  dy  :" + " ".join([f"{val:12.5e}" for val in dy])
+                )
                 print(string)
         except Exception as exc:
             print(f"Error in f_dy with state = {state}: \n {exc}")
             raise exc
-        dy = np.where(state > 1e-5, dy, 0)
+
         if temp_modifier_func is not None:
-            dy = temp_modifier_func(t, state, dy)
-            return dy
+            dy = temp_modifier_func(t, state_eval, dy)
         return dy
+
+    def f_dy(self, t: float, state: NDArray[np.float64], energy_modifier_func: Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None=None, temp_modifier_func: Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None=None):
+        """Returns the derivative of the vector 'state' describing the state of plasma.
+            'state' has format : [n_e, n_N2, ..., n_N+, T_e, T_monoato, ..., T_diato]"""
+        return self._compute_dy(t, state, energy_modifier_func, temp_modifier_func, track_values=True)
     
 # TODO a coder
     # def thrust_i(self, T_e, n_e, n_ion , m_ion , charge): #Faux, qui est specie ?
@@ -188,11 +195,9 @@ class GlobalModel:
     def n_g_tot (self, state) :
         '''total density of neutral gases'''
         total = 0
-        #for i in(range(len(state)/2)) :
-        for i in range(self.species.nb):
-            # if self.species.species[i].charge == 0:
-            #     total += state[i]
-            total += state[i]
+        for sp in self.species.species:
+            if sp.charge == 0:
+                total += state[sp.index]
         return total
         
     def solve(self, t0: float, tf: float, initial_state: NDArray[np.float64] | list[float], args: Tuple[Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None, Callable[[float, NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]] | None] | None=None):
@@ -250,8 +255,45 @@ class GlobalModel:
             occurred (``status >= 0``).
         """
         #y0 = np.array([self.chamber.n_e_0, self.chamber.n_g_0, 0, self.chamber.T_e_0, self.chamber.T_g_0, 0])
-        y0 = np.array(initial_state)  #np.array([self.chamber.n_e_0, self.chamber.n_g_0, 0, self.chamber.T_e_0, self.chamber.T_g_0, 0])
-        sol = solve_ivp(self.f_dy, (t0, tf), y0, method='LSODA', rtol=1e-3, atol=1e-3, first_step=5e-12, min_step=1e-12, args=args, events=stop_event)    # , max_step=1e-7
+        y0 = np.array(initial_state)
+        span = max(tf - t0, 1e-12)
+        event_start_time = t0 + 0.1 * span
+        density_floor = 1e10
+        convergence_tol = 5e-4
+
+        def density_extinction_event(t, state, *_event_args):
+            if t <= event_start_time:
+                return 1.0
+            return state[0] - density_floor
+
+        def convergence_event(t, state, *_event_args):
+            if t <= event_start_time:
+                return 1.0
+            if args is None:
+                dy = self._compute_dy(t, state, track_values=False)
+            else:
+                dy = self._compute_dy(t, state, args[0], args[1], track_values=False)
+            scale = np.maximum(np.abs(state), 1e-30)
+            rel_change_over_span = np.max(np.abs(dy) / scale) * span
+            return rel_change_over_span - convergence_tol
+
+        density_extinction_event.terminal = True
+        density_extinction_event.direction = -1
+        convergence_event.terminal = True
+        convergence_event.direction = -1
+
+        sol = solve_ivp(
+            self.f_dy,
+            (t0, tf),
+            y0,
+            method='LSODA',
+            rtol=1e-3,
+            atol=1e-3,
+            first_step=5e-12,
+            min_step=1e-12,
+            args=args,
+            events=[density_extinction_event, convergence_event],
+        )
         #log_file_path=self.simulation_name
         if not self.fast:
             self.var_tracker.save_tracked_variables()
@@ -339,13 +381,4 @@ class GlobalModel:
             
     #     return final_states
     
-def stop_event(t, state, *args):
-    if t > 1.1e-2 and state[0] < 1e10:
-        print("Early stop event triggered because of electron density below 1e10 m^-3 for t > 1.1e-2 s")
-        return 0.0
-    return 1.0  # positive otherwise
-
-stop_event.terminal = True
-stop_event.direction = 0
-
     
