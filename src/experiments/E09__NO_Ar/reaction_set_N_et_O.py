@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.constants import pi, e, k as k_B, epsilon_0 as eps_0, c, m_e
+from datetime import date as date_cls
 from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
 # import numpy as np
 
 from global_model_package.reactions import (Excitation, Ionisation, Dissociation, 
@@ -18,9 +21,109 @@ ReactionRateConstant.CROSS_SECTIONS_PATH = "../../../cross_sections"
 DEFAULT_MSIS_DATE = datetime(2020, 1, 1, 12, 0, 0)
 DEFAULT_MSIS_LAT = 0.0
 DEFAULT_MSIS_LON = 0.0
-DEFAULT_MSIS_F107 = 150.0
-DEFAULT_MSIS_F107A = 150.0
-DEFAULT_MSIS_AP = 4
+DEFAULT_MSIS_F107 = None
+DEFAULT_MSIS_F107A = None
+DEFAULT_MSIS_AP = None
+
+SPACE_WEATHER_PATH = Path(__file__).resolve().parents[3].joinpath("data", "space_weather.txt")
+
+
+def _parse_space_weather(path: Path) -> dict[date_cls, dict[str, object]]:
+    records: dict[date_cls, dict[str, object]] = {}
+    if not path.exists():
+        return records
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) < 28:
+                continue
+            try:
+                year = int(parts[0])
+                month = int(parts[1])
+                day = int(parts[2])
+            except ValueError:
+                continue
+            day_key = date_cls(year, month, day)
+            try:
+                ap_3h = [int(p) for p in parts[15:23]]
+                ap_daily = float(parts[23])
+                f107_obs = float(parts[25])
+                f107_adj = float(parts[26])
+            except ValueError:
+                continue
+            records[day_key] = {
+                "ap_3h": ap_3h,
+                "ap_daily": ap_daily,
+                "f107_obs": f107_obs,
+                "f107_adj": f107_adj,
+            }
+    return records
+
+
+def _compute_f107a(records: dict[date_cls, dict[str, object]]) -> dict[date_cls, float]:
+    if not records:
+        return {}
+    dates_sorted = sorted(records.keys())
+    f107a_map: dict[date_cls, float] = {}
+    for idx, day_key in enumerate(dates_sorted):
+        window_start = max(0, idx - 80)
+        window_dates = dates_sorted[window_start : idx + 1]
+        vals = []
+        for d in window_dates:
+            v = float(records[d]["f107_obs"])
+            if v >= 0:
+                vals.append(v)
+        if vals:
+            f107a_map[day_key] = float(np.mean(vals))
+        else:
+            f107a_map[day_key] = float(records[day_key]["f107_adj"])
+    return f107a_map
+
+
+def _nearest_available_date(target: date_cls, records: dict[date_cls, dict[str, object]]) -> date_cls:
+    if target in records:
+        return target
+    if not records:
+        raise ValueError("space_weather.txt has no data rows.")
+    dates_sorted = sorted(records.keys())
+    if target < dates_sorted[0]:
+        return dates_sorted[0]
+    if target > dates_sorted[-1]:
+        return dates_sorted[-1]
+    for d in reversed(dates_sorted):
+        if d <= target:
+            return d
+    return dates_sorted[0]
+
+
+def _space_weather_params(
+    dt: datetime,
+    records: dict[date_cls, dict[str, object]],
+    f107a_map: dict[date_cls, float],
+) -> tuple[float, float, float]:
+    day_key = _nearest_available_date(dt.date(), records)
+    rec = records[day_key]
+    f107_obs = float(rec["f107_obs"])
+    f107_adj = float(rec["f107_adj"])
+    f107 = f107_obs if f107_obs >= 0 else f107_adj
+    f107a = f107a_map.get(day_key, f107_adj)
+    ap_daily = float(rec["ap_daily"])
+    if ap_daily < 0:
+        ap_3h = rec.get("ap_3h", [])
+        ap_vals = [float(v) for v in ap_3h if float(v) >= 0]
+        if ap_vals:
+            ap_daily = float(np.mean(ap_vals))
+    return f107, f107a, ap_daily
+
+
+@lru_cache(maxsize=1)
+def _load_space_weather() -> tuple[dict[date_cls, dict[str, object]], dict[date_cls, float]]:
+    records = _parse_space_weather(SPACE_WEATHER_PATH)
+    f107a_map = _compute_f107a(records)
+    return records, f107a_map
 
 
 def _msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap):
@@ -58,6 +161,14 @@ def get_neutral_atmosphere(
     f107a=DEFAULT_MSIS_F107A,
     ap=DEFAULT_MSIS_AP,
 ):
+    if f107 is None or f107a is None or ap is None:
+        records, f107a_map = _load_space_weather()
+        if records:
+            f107, f107a, ap = _space_weather_params(date, records, f107a_map)
+        else:
+            f107 = 150.0
+            f107a = 150.0
+            ap = 4.0
     msise = _msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap)
     n_total = msise["N2"] + msise["N"] + msise["O2"] + msise["O"]
     msise["pressure_pa"] = float(n_total * k_B * msise["T_K"])
@@ -73,8 +184,8 @@ def get_species_and_reactions(
     date=DEFAULT_MSIS_DATE,
     ion_seed=1e8,
     electron_seed=2.1e12,
-    compression_rate=4000,
-    collection_rate=0.5,
+    compression_rate=500,
+    collection_rate=1,
     atm=None,
 ):
 
