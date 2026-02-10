@@ -1,11 +1,10 @@
 """
-Atmosphere density sphere with interactive altitude, latitude, and longitude selection.
-The sphere radius is modulated by atmospheric density at each point.
+Interactive atmosphere density sphere with species selection and altitude slider.
+The sphere radius is modulated by atmospheric density of selected species.
 """
 
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from nrlmsise00 import msise_model
 from datetime import datetime
 
@@ -22,9 +21,8 @@ def spherical_to_cartesian(radius, lat_deg, lon_deg):
     return x, y, z
 
 
-def get_density_at_point(alt_km, lat_deg, lon_deg, year=2020):
-    """Get total atmospheric density at a point using NRLMSISE00."""
-    # Default space weather indices
+def get_species_density(alt_km, lat_deg, lon_deg, species='N2', year=2020):
+    """Get density of specific species using NRLMSISE00."""
     f107a = 150.0
     f107 = 150.0
     ap = 8.0
@@ -39,12 +37,26 @@ def get_density_at_point(alt_km, lat_deg, lon_deg, year=2020):
         ap
     )
     
-    # dens[0] = total mass density (g/cm^3)
-    return float(dens[0])
+    dens = np.array(dens, dtype=float)
+    
+    # dens[0]=Total mass, [1]=O, [2]=N2, [3]=O2, [7]=N (in cm^-3)
+    species_map = {
+        'O': 1,
+        'N2': 2,
+        'O2': 3,
+        'N': 7
+    }
+    
+    if species == 'Moyenne':
+        # Return average of main species
+        return (dens[1] + dens[2] + dens[3] + dens[7]) / 4.0
+    else:
+        idx = species_map.get(species, 2)
+        return float(dens[idx])
 
 
-def build_density_sphere(alt_km, lat_center_deg, lon_center_deg, n_lat=50, n_lon=100, year=2020):
-    """Build a sphere with radius modulated by atmospheric density."""
+def build_density_sphere(alt_km, lat_center_deg, lon_center_deg, species='N2', n_lat=40, n_lon=80, year=2020):
+    """Build a sphere with radius modulated by atmospheric density of selected species."""
     
     # Create latitude/longitude grids (relative to center point)
     lats = np.linspace(-90, 90, n_lat)
@@ -65,7 +77,7 @@ def build_density_sphere(alt_km, lat_center_deg, lon_center_deg, n_lat=50, n_lon
         for j in range(n_lon):
             lat = lat_grid[i, j]
             lon = lon_grid[i, j]
-            density_grid[i, j] = get_density_at_point(alt_km, lat, lon, year)
+            density_grid[i, j] = get_species_density(alt_km, lat, lon, species=species, year=year)
     
     # Normalize density to create radius variations
     # Use log scale to enhance contrast
@@ -78,7 +90,7 @@ def build_density_sphere(alt_km, lat_center_deg, lon_center_deg, n_lat=50, n_lon
     
     # Create radius variations: base radius + modulation
     base_radius = alt_km
-    radius_variation = 100 * (density_normalized ** 1.5)  # Exponent for contrast
+    radius_variation = 150 * (density_normalized ** 1.8)  # Stronger exponent for more contrast
     radius_grid = base_radius + radius_variation
     
     # Convert to Cartesian coordinates
@@ -96,56 +108,122 @@ def build_density_sphere(alt_km, lat_center_deg, lon_center_deg, n_lat=50, n_lon
     return x_grid, y_grid, z_grid, density_normalized
 
 
-def create_figure_for_params(alt_km, lat_deg, lon_deg, year=2020):
-    """Create figure for given parameters."""
-    print(f"  Computing density sphere: alt={alt_km} km, lat={lat_deg}°, lon={lon_deg}°")
+def create_figure():
+    """Create interactive figure with altitude slider and species buttons."""
+    print("Creating interactive atmosphere sphere...")
     
-    x, y, z, density = build_density_sphere(alt_km, lat_deg, lon_deg, year=year)
+    # Initial parameters
+    initial_alt = 200
+    initial_species = 'N2'
+    lat_center = 0
+    lon_center = 0
+    year = 2020
+    
+    # Altitude range
+    alt_values = list(range(100, 501, 25))  # 100 to 500 km with 25 km steps
+    
+    # Compute all density spheres for all altitudes and species
+    print(f"  Computing density grids (this may take a minute)...")
+    data_cache = {}
+    
+    species_list = ['N2', 'O2', 'N', 'O', 'Moyenne']
+    
+    for species in species_list:
+        data_cache[species] = {}
+        for alt in alt_values:
+            x, y, z, dens = build_density_sphere(alt, lat_center, lon_center, species=species, year=year)
+            data_cache[species][alt] = (x, y, z, dens)
+            print(f"    {species:6s} @ {alt:3d} km ✓")
+    
+    # Create initial figure
+    x, y, z, dens = data_cache[initial_species][initial_alt]
+    
+    # Species colors
+    species_colors = {
+        'N2': 'Viridis',
+        'O2': 'Plasma',
+        'N': 'Inferno',
+        'O': 'Magma',
+        'Moyenne': 'Blues'
+    }
     
     fig = go.Figure(data=[
         go.Surface(
             x=x, y=y, z=z,
-            surfacecolor=density,
-            colorscale='Viridis',
-            colorbar=dict(title='Density\n(normalized)'),
-            name='Atmosphere'
+            surfacecolor=dens,
+            colorscale=species_colors[initial_species],
+            colorbar=dict(title=f'Densité {initial_species}<br>(normalisée)'),
+            name=initial_species
         )
     ])
     
-    return fig
-
-
-def main():
-    """Build interactive atmosphere explorer with sliders."""
-    print("Creating interactive atmosphere explorer...")
-    
-    # Initial parameters
-    initial_alt = 200
-    initial_lat = 0
-    initial_lon = 0
-    year = 2020
-    
-    # Create initial figure
-    fig = create_figure_for_params(initial_alt, initial_lat, initial_lon, year=year)
-    
-    # Define slider ranges and steps
-    alt_values = np.arange(100, 501, 50)  # 100 to 500 km
-    lat_values = np.arange(-90, 91, 30)   # -90 to 90 deg
-    lon_values = np.arange(-180, 180, 30) # -180 to 180 deg
-    
-    # Create all figures for different altitude/lat/lon combinations
-    figures_dict = {}
+    # Create frames for slider
+    frames = []
     
     for alt in alt_values:
-        for lat in lat_values:
-            for lon in lon_values:
-                key = (alt, lat, lon)
-                x, y, z, density = build_density_sphere(alt, lat, lon, year=year)
-                figures_dict[key] = (x, y, z, density)
+        x, y, z, dens = data_cache[initial_species][alt]
+        frames.append(
+            go.Frame(
+                data=[
+                    go.Surface(
+                        x=x, y=y, z=z,
+                        surfacecolor=dens,
+                        colorscale=species_colors[initial_species],
+                        colorbar=dict(title=f'Densité {initial_species}<br>(normalisée)'),
+                        name=initial_species
+                    )
+                ],
+                name=str(alt),
+                layout=go.Layout(
+                    title=f'Densité atmosphérique: {initial_species}<br>Altitude: {alt} km | Latitude: {lat_center}° | Longitude: {lon_center}°'
+                )
+            )
+        )
     
-    # Update layout with sliders
+    # Create buttons for species selection
+    buttons_species = []
+    for species in species_list:
+        # Create frames for this species and add to main frames list
+        for alt in alt_values:
+            x, y, z, dens = data_cache[species][alt]
+            frames.append(
+                go.Frame(
+                    data=[
+                        go.Surface(
+                            x=x, y=y, z=z,
+                            surfacecolor=dens,
+                            colorscale=species_colors[species],
+                            colorbar=dict(title=f'Densité {species}<br>(normalisée)'),
+                            name=species
+                        )
+                    ],
+                    name=f'{species}_{alt}',
+                    layout=go.Layout(
+                        title=f'Densité atmosphérique: {species}<br>Altitude: {alt} km | Latitude: {lat_center}° | Longitude: {lon_center}°'
+                    )
+                )
+            )
+        
+        button = dict(
+            label=species,
+            method='animate',
+            args=[
+                [str(initial_alt)],
+                {
+                    'frame': {'duration': 500, 'redraw': True},
+                    'fromcurrent': True,
+                    'mode': 'immediate',
+                    'transition': {'duration': 300}
+                }
+            ]
+        )
+        buttons_species.append(button)
+    
+    fig.frames = frames
+    
+    # Update layout with slider and buttons
     fig.update_layout(
-        title=f'Sphère de densité atmosphérique<br>Altitude: {initial_alt} km | Latitude: {initial_lat}° | Longitude: {initial_lon}°',
+        title=f'Densité atmosphérique: {initial_species}<br>Altitude: {initial_alt} km | Latitude: {lat_center}° | Longitude: {lon_center}°',
         scene=dict(
             xaxis_title='X (km)',
             yaxis_title='Y (km)',
@@ -155,113 +233,46 @@ def main():
         ),
         width=1200,
         height=900,
+        updatemenus=[
+            dict(
+                type='buttons',
+                direction='down',
+                x=0.0,
+                y=1.0,
+                buttons=buttons_species,
+                bgcolor='rgba(255, 255, 255, 0.9)',
+                bordercolor='gray',
+                borderwidth=1
+            )
+        ],
         sliders=[
             {
-                'active': 0,
+                'active': alt_values.index(initial_alt),
                 'yanchor': 'top',
-                'y': 0,
+                'y': -0.05,
                 'xanchor': 'left',
-                'x': 0,
+                'x': 0.15,
                 'currentvalue': {
                     'prefix': 'Altitude: ',
                     'suffix': ' km',
                     'visible': True,
                     'xanchor': 'center',
-                    'font': {'size': 14}
+                    'font': {'size': 16, 'color': 'black'}
                 },
                 'transition': {'duration': 300},
                 'pad': {'b': 10, 't': 50},
-                'len': 0.3,
+                'len': 0.6,
                 'steps': [
                     {
-                        'args': [[alt], {'frame': {'duration': 0, 'redraw': True}, 'mode': 'immediate'}],
+                        'args': [[str(alt)], {'frame': {'duration': 0, 'redraw': True}, 'mode': 'immediate'}],
                         'method': 'animate',
                         'label': str(alt)
                     }
                     for alt in alt_values
                 ]
-            },
-            {
-                'active': 3,
-                'yanchor': 'top',
-                'y': -0.05,
-                'xanchor': 'left',
-                'x': 0,
-                'currentvalue': {
-                    'prefix': 'Latitude: ',
-                    'suffix': '°',
-                    'visible': True,
-                    'xanchor': 'center',
-                    'font': {'size': 14}
-                },
-                'transition': {'duration': 300},
-                'pad': {'b': 10, 't': 10},
-                'len': 0.3,
-                'steps': [
-                    {
-                        'args': [[lat], {'frame': {'duration': 0, 'redraw': True}, 'mode': 'immediate'}],
-                        'method': 'animate',
-                        'label': str(lat)
-                    }
-                    for lat in lat_values
-                ]
-            },
-            {
-                'active': 3,
-                'yanchor': 'top',
-                'y': -0.1,
-                'xanchor': 'left',
-                'x': 0,
-                'currentvalue': {
-                    'prefix': 'Longitude: ',
-                    'suffix': '°',
-                    'visible': True,
-                    'xanchor': 'center',
-                    'font': {'size': 14}
-                },
-                'transition': {'duration': 300},
-                'pad': {'b': 10, 't': 10},
-                'len': 0.3,
-                'steps': [
-                    {
-                        'args': [[lon], {'frame': {'duration': 0, 'redraw': True}, 'mode': 'immediate'}],
-                        'method': 'animate',
-                        'label': str(lon)
-                    }
-                    for lon in lon_values
-                ]
             }
         ]
     )
-    
-    # Create frames for animation
-    frames = []
-    
-    for alt in alt_values:
-        for lat in lat_values:
-            for lon in lon_values:
-                key = (alt, lat, lon)
-                x, y, z, density = figures_dict[key]
-                
-                frames.append(
-                    go.Frame(
-                        data=[
-                            go.Surface(
-                                x=x, y=y, z=z,
-                                surfacecolor=density,
-                                colorscale='Viridis',
-                                colorbar=dict(title='Density\n(normalized)'),
-                                name='Atmosphere'
-                            )
-                        ],
-                        name=f'alt={alt}_lat={lat}_lon={lon}',
-                        layout=go.Layout(
-                            title=f'Sphère de densité atmosphérique<br>Altitude: {alt} km | Latitude: {lat}° | Longitude: {lon}°'
-                        )
-                    )
-                )
-    
-    fig.frames = frames
     
     # Save figure
     output_file = 'figures/atmosphere_sphere_interactive.html'
@@ -270,4 +281,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    create_figure()
