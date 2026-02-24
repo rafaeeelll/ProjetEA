@@ -25,7 +25,8 @@ def _load_model() -> tuple:
     model_path = (
         Path(__file__)
         .resolve()
-        .parent.parent.parent.parent.joinpath("outputs", "thrust_dataset", "thrust_rbf_model.npz")
+        .parents[4]
+        .joinpath("outputs", "thrust_dataset", "thrust_rbf_model.npz")
     )
     meta_path = model_path.with_suffix(".json")
     if not model_path.exists():
