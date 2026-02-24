@@ -8,11 +8,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.constants import pi
 
-# the existing helpers used by orbital_thrust for space weather and MSIS
 E09_DIR = Path(__file__).resolve().parents[1]
 if str(E09_DIR) not in sys.path:
     sys.path.append(str(E09_DIR))
 
+# the existing helpers used by orbital_thrust for space weather and MSIS
 from msis_densities import (
     _compute_f107a,
     _parse_space_weather,

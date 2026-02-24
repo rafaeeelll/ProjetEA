@@ -20,6 +20,10 @@ from global_model_package.model import GlobalModel
 from global_model_package.chamber_caracteristics import Chamber
 from global_model_package.reactions import ElectronHeatingConstantRFPower
 
+E09_DIR = Path(__file__).resolve().parent
+if str(E09_DIR) not in sys.path:
+    sys.path.append(str(E09_DIR))
+
 from reaction_set_N_et_O import get_species_and_reactions, get_neutral_atmosphere
 from msis_densities import _compute_f107a, _parse_space_weather, _space_weather_params, SPACE_WEATHER_PATH
 
