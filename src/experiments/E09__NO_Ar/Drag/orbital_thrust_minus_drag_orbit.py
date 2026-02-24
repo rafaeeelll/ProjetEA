@@ -72,7 +72,7 @@ f107, f107a, ap = _space_weather_params(date, records, f107a_map)
 
 # drag constants used earlier
 CD = 2.2
-CROSS_SECTION_AREA_M2 = 1.0
+CROSS_SECTION_AREA_M2 = 0.5
 
 # species masses
 _m_N2 = 4.65e-26
