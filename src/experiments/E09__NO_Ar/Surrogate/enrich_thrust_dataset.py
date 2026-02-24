@@ -7,10 +7,13 @@ import numpy as np
 from scipy.constants import pi
 
 
+E09_DIR = Path(__file__).resolve().parents[1]
+if str(E09_DIR) not in sys.path:
+    sys.path.append(str(E09_DIR))
 try:
     import global_model_package  # noqa: F401
 except ModuleNotFoundError:
-    global_model_package_path = Path(__file__).resolve().parent.parent.parent.joinpath("global_model_package")
+    global_model_package_path = Path(__file__).resolve().parents[2].joinpath("global_model_package")
     sys.path.append(str(global_model_package_path))
 
 from global_model_package.chamber_caracteristics import Chamber
