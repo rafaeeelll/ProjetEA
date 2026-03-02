@@ -1,20 +1,20 @@
 import numpy as np
-from scipy.constants import pi, e, k as k_B, epsilon_0 as eps_0, c, m_e
-from datetime import date as date_cls
+from scipy.constants import e, k as k_B, m_e
 from datetime import datetime
-from functools import lru_cache
-from pathlib import Path
-# import numpy as np
 
 from global_model_package.reactions import (Excitation, Ionisation, Dissociation, 
                 VibrationalExcitation, RotationalExcitation,
                 ThermicDiffusion, InelasticCollision, ElasticCollisionWithElectron, 
                 FluxToWallsAndThroughGrids, GasInjection,
-                ElectronHeatingConstantRFPower, ElectronHeatingConstantAbsorbedPower
+                ElectronHeatingConstantRFPower
             )
 
 from global_model_package.specie import Species, Specie
 from global_model_package.constant_rate_calculation import get_K_func, ReactionRateConstant
+try:
+    from .msis_densities import get_msis_neutral_atmosphere
+except ImportError:
+    from msis_densities import get_msis_neutral_atmosphere
 
 ReactionRateConstant.CROSS_SECTIONS_PATH = "../../../cross_sections"
 
@@ -24,155 +24,9 @@ DEFAULT_MSIS_LON = 0.0
 DEFAULT_MSIS_F107 = None
 DEFAULT_MSIS_F107A = None
 DEFAULT_MSIS_AP = None
-
-SPACE_WEATHER_PATH = Path(__file__).resolve().parents[3].joinpath("data", "space_weather.txt")
-
-
-def _parse_space_weather(path: Path) -> dict[date_cls, dict[str, object]]:
-    records: dict[date_cls, dict[str, object]] = {}
-    if not path.exists():
-        return records
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split()
-            if len(parts) < 28:
-                continue
-            try:
-                year = int(parts[0])
-                month = int(parts[1])
-                day = int(parts[2])
-            except ValueError:
-                continue
-            day_key = date_cls(year, month, day)
-            try:
-                ap_3h = [int(p) for p in parts[15:23]]
-                ap_daily = float(parts[23])
-                f107_obs = float(parts[25])
-                f107_adj = float(parts[26])
-            except ValueError:
-                continue
-            records[day_key] = {
-                "ap_3h": ap_3h,
-                "ap_daily": ap_daily,
-                "f107_obs": f107_obs,
-                "f107_adj": f107_adj,
-            }
-    return records
-
-
-def _compute_f107a(records: dict[date_cls, dict[str, object]]) -> dict[date_cls, float]:
-    if not records:
-        return {}
-    dates_sorted = sorted(records.keys())
-    f107a_map: dict[date_cls, float] = {}
-    for idx, day_key in enumerate(dates_sorted):
-        window_start = max(0, idx - 80)
-        window_dates = dates_sorted[window_start : idx + 1]
-        vals = []
-        for d in window_dates:
-            v = float(records[d]["f107_obs"])
-            if v >= 0:
-                vals.append(v)
-        if vals:
-            f107a_map[day_key] = float(np.mean(vals))
-        else:
-            f107a_map[day_key] = float(records[day_key]["f107_adj"])
-    return f107a_map
-
-
-def _nearest_available_date(target: date_cls, records: dict[date_cls, dict[str, object]]) -> date_cls:
-    if target in records:
-        return target
-    if not records:
-        raise ValueError("space_weather.txt has no data rows.")
-    dates_sorted = sorted(records.keys())
-    if target < dates_sorted[0]:
-        return dates_sorted[0]
-    if target > dates_sorted[-1]:
-        return dates_sorted[-1]
-    for d in reversed(dates_sorted):
-        if d <= target:
-            return d
-    return dates_sorted[0]
-
-
-def _space_weather_params(
-    dt: datetime,
-    records: dict[date_cls, dict[str, object]],
-    f107a_map: dict[date_cls, float],
-) -> tuple[float, float, float]:
-    day_key = _nearest_available_date(dt.date(), records)
-    rec = records[day_key]
-    f107_obs = float(rec["f107_obs"])
-    f107_adj = float(rec["f107_adj"])
-    f107 = f107_obs if f107_obs >= 0 else f107_adj
-    f107a = f107a_map.get(day_key, f107_adj)
-    ap_daily = float(rec["ap_daily"])
-    if ap_daily < 0:
-        ap_3h = rec.get("ap_3h", [])
-        ap_vals = [float(v) for v in ap_3h if float(v) >= 0]
-        if ap_vals:
-            ap_daily = float(np.mean(ap_vals))
-    return f107, f107a, ap_daily
-
-
-@lru_cache(maxsize=1)
-def _load_space_weather() -> tuple[dict[date_cls, dict[str, object]], dict[date_cls, float]]:
-    records = _parse_space_weather(SPACE_WEATHER_PATH)
-    f107a_map = _compute_f107a(records)
-    return records, f107a_map
-
-
-def _msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap):
-    from nrlmsise00 import msise_model  # type: ignore
-
-    dens, temp = msise_model(date, altitude_km, lat, lon, f107a, f107, ap)
-    dens = np.array(dens, dtype=float)
-    temp = np.array(temp, dtype=float)
-
-    # NRLMSISE outputs number densities in cm^-3; convert to m^-3
-    n_N2 = dens[2] * 1e6
-    n_O2 = dens[3] * 1e6
-    n_O = dens[1] * 1e6
-    n_N = dens[7] * 1e6
-    n_total = n_N2 + n_O2 + n_O + n_N
-
-    T_K = float(temp[1])
-    return {
-        "N2": float(n_N2),
-        "N": float(n_N),
-        "O2": float(n_O2),
-        "O": float(n_O),
-        "T_K": T_K,
-        "T_eV": float(k_B * T_K / e),
-        "source": "msise",
-    }
-
-
-def get_neutral_atmosphere(
-    altitude_km,
-    lat=DEFAULT_MSIS_LAT,
-    lon=DEFAULT_MSIS_LON,
-    date=DEFAULT_MSIS_DATE,
-    f107=DEFAULT_MSIS_F107,
-    f107a=DEFAULT_MSIS_F107A,
-    ap=DEFAULT_MSIS_AP,
-):
-    if f107 is None or f107a is None or ap is None:
-        records, f107a_map = _load_space_weather()
-        if records:
-            f107, f107a, ap = _space_weather_params(date, records, f107a_map)
-        else:
-            f107 = 150.0
-            f107a = 150.0
-            ap = 4.0
-    msise = _msise_atmosphere(altitude_km, lat, lon, date, f107, f107a, ap)
-    n_total = msise["N2"] + msise["N"] + msise["O2"] + msise["O"]
-    msise["pressure_pa"] = float(n_total * k_B * msise["T_K"])
-    return msise
+OUTLET_AREA_M2 = 0.01
+EARTH_RADIUS_M = 6371e3
+EARTH_MU = 3.986004418e14
 
 
 def get_species_and_reactions(
@@ -182,22 +36,43 @@ def get_species_and_reactions(
     lat=DEFAULT_MSIS_LAT,
     lon=DEFAULT_MSIS_LON,
     date=DEFAULT_MSIS_DATE,
+    f107=DEFAULT_MSIS_F107,
+    f107a=DEFAULT_MSIS_F107A,
+    ap=DEFAULT_MSIS_AP,
     ion_seed=1e8,
-    electron_seed=2.1e12,
-    compression_rate=500,
-    collection_rate=1,
+    electron_seed=1e12,
+    A_intake=None,
+    eta_collection=0.4,
+    orbital_speed=None,
     atm=None,
 ):
 
     species = Species([Specie("e", m_e, -e, 0, 3/2), Specie("Ar", 6.63e-26, 0, 1, 3/2), Specie("Ar+", 6.63e-26, e, 1, 3/2), Specie("N2", 4.65e-26, 0, 2, 5/2), Specie("N", 2.33e-26, 0, 1, 3/2), Specie("N2+", 4.65e-26, e, 2, 5/2), Specie("N+", 2.33e-26, e, 1, 3/2), Specie("O2+", 5.31e-26, e, 2, 5/2), Specie("O2", 5.31e-26, 0, 2, 5/2), Specie("O", 2.67e-26, 0, 1, 3/2), Specie("O+", 2.67e-26, e, 1, 3/2)])
 
     if atm is None:
-        atm = get_neutral_atmosphere(altitude, lat=lat, lon=lon, date=date)
+        atm = get_msis_neutral_atmosphere(
+            altitude_km=float(altitude),
+            lat=float(lat),
+            lon=float(lon),
+            date=date,
+            f107=f107,
+            f107a=f107a,
+            ap=ap,
+        )
+
+    if A_intake is None:
+        A_intake = 1
+
+    tau_c = A_intake / OUTLET_AREA_M2
+
+    if orbital_speed is None:
+        r_orbit = EARTH_RADIUS_M + altitude * 1e3
+        orbital_speed = np.sqrt(EARTH_MU / r_orbit)
 
     initial_state_dict = {
         "e": electron_seed,
-        "Ar" : 1e14,
-        "Ar+" : ion_seed,
+        "Ar" : 0,
+        "Ar+" : 0,
         "N2": atm["N2"],
         "N": atm["N"],
         "N2+": ion_seed,
@@ -210,15 +85,13 @@ def get_species_and_reactions(
         "T_mono": atm["T_eV"],
         "T_diato": atm["T_eV"],
     }
-    print(initial_state_dict)
 
-    # Apply compression to neutrals only; compressing electron seeds makes
-    # eps_p extremely negative and breaks RF power absorption (NaNs).
+    # Compression des neutres
     initial_densities = []
     for sp in species.species:
         base_density = initial_state_dict[sp.name]
         if sp.charge == 0 and sp.name != "e":
-            initial_densities.append(compression_rate * base_density)
+            initial_densities.append(tau_c * base_density)
         else:
             initial_densities.append(base_density)
     initial_state = initial_densities + [
@@ -227,11 +100,14 @@ def get_species_and_reactions(
         initial_state_dict["T_diato"],
     ]
     
+    # Particle injection rate in 1/s:
+    # Ndot_i = eta_collection * n_i * u_orbit * A_intake
+    intake_capture = eta_collection * orbital_speed * A_intake
     injection_rates = np.zeros(species.nb)
-    injection_rates[species.get_specie_by_name("N2").index] = collection_rate * atm["N2"] *compression_rate
-    injection_rates[species.get_specie_by_name("N").index] = collection_rate * atm["N"] *compression_rate
-    injection_rates[species.get_specie_by_name("O2").index] = collection_rate * atm["O2"]*compression_rate
-    injection_rates[species.get_specie_by_name("O").index] = collection_rate * atm["O"]*compression_rate
+    injection_rates[species.get_specie_by_name("N2").index] = intake_capture * atm["N2"]
+    injection_rates[species.get_specie_by_name("N").index] = intake_capture * atm["N"]
+    injection_rates[species.get_specie_by_name("O2").index] = intake_capture * atm["O2"]
+    injection_rates[species.get_specie_by_name("O").index] = intake_capture * atm["O"]
     injection_rates[species.get_specie_by_name("Ar").index] = argon_injection_rate
 
 
@@ -358,7 +234,5 @@ def get_species_and_reactions(
 #  ██▀ █   ██▀ ▄▀▀ ▀█▀ █▀▄ ▄▀▄ █▄ █   █▄█ ██▀ ▄▀▄ ▀█▀ █ █▄ █ ▄▀    ██▄ ▀▄▀   ▀█▀ █▄█ ██▀   ▄▀▀ ▄▀▄ █ █    
 #  █▄▄ █▄▄ █▄▄ ▀▄▄  █  █▀▄ ▀▄▀ █ ▀█   █ █ █▄▄ █▀█  █  █ █ ▀█ ▀▄█   █▄█  █     █  █ █ █▄▄   ▀▄▄ ▀▄▀ █ █▄▄  
     electron_heating = ElectronHeatingConstantRFPower(species, 1000, chamber)
-
-    print(injection_rates)
 
     return species, initial_state, reaction_list, electron_heating

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import date as date_cls
 from datetime import datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
-import matplotlib.pyplot as plt
+from scipy.constants import e, k as k_B
 
 
 SPACE_WEATHER_PATH = (
@@ -103,7 +104,68 @@ def _space_weather_params(
     return f107, f107a, ap_daily
 
 
+@lru_cache(maxsize=1)
+def _load_space_weather() -> tuple[dict[date_cls, dict[str, object]], dict[date_cls, float]]:
+    records = _parse_space_weather(SPACE_WEATHER_PATH)
+    f107a_map = _compute_f107a(records)
+    return records, f107a_map
+
+
+def resolve_space_weather_params(
+    dt: datetime,
+    f107: float | None = None,
+    f107a: float | None = None,
+    ap: float | None = None,
+) -> tuple[float, float, float]:
+    if f107 is not None and f107a is not None and ap is not None:
+        return float(f107), float(f107a), float(ap)
+    records, f107a_map = _load_space_weather()
+    if not records:
+        return 150.0, 150.0, 4.0
+    return _space_weather_params(dt, records, f107a_map)
+
+
+def get_msis_neutral_atmosphere(
+    altitude_km: float,
+    lat: float = 0.0,
+    lon: float = 0.0,
+    date: datetime = datetime(2020, 1, 1, 12, 0, 0),
+    f107: float | None = None,
+    f107a: float | None = None,
+    ap: float | None = None,
+) -> dict[str, float]:
+    from nrlmsise00 import msise_model  # type: ignore
+
+    f107_res, f107a_res, ap_res = resolve_space_weather_params(date, f107=f107, f107a=f107a, ap=ap)
+    dens, temp = msise_model(date, altitude_km, lat, lon, f107a_res, f107_res, ap_res)
+    dens = np.array(dens, dtype=float)
+    temp = np.array(temp, dtype=float)
+
+    n_N2 = float(dens[2]) * 1e6
+    n_O2 = float(dens[3]) * 1e6
+    n_O = float(dens[1]) * 1e6
+    n_N = float(dens[7]) * 1e6
+    n_total = n_N2 + n_O2 + n_O + n_N
+
+    t_k = float(temp[1])
+    return {
+        "N2": n_N2,
+        "N": n_N,
+        "O2": n_O2,
+        "O": n_O,
+        "T_K": t_k,
+        "T_eV": float(k_B * t_k / e),
+        "pressure_pa": float(n_total * k_B * t_k),
+        "source": "msise",
+        "f107": float(f107_res),
+        "f107a": float(f107a_res),
+        "ap": float(ap_res),
+    }
+
+
 def main():
+    import matplotlib.pyplot as plt
+
     try:
         from nrlmsise00 import msise_model  # type: ignore
     except Exception as exc:
@@ -194,7 +256,7 @@ def main():
         lat_deg = float(np.degrees(lat_rad))
         lon_deg = float(np.degrees(lon_rad))
 
-        dens_orb, _ = msise_model(dt, altitude_km, lat, lon_deg, f107a, f107, ap)
+        dens_orb, _ = msise_model(dt, altitude_km, lat_deg, lon_deg, f107a, f107, ap)
         dens_orb = np.array(dens_orb, dtype=float)
 
         n_O = float(dens_orb[1]) * 1.0e6

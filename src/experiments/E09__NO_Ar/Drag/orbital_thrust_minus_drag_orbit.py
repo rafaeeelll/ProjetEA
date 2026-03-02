@@ -20,6 +20,13 @@ from msis_densities import (
     SPACE_WEATHER_PATH,
 )
 
+try:
+    from nrlmsise00 import msise_model  # type: ignore
+except ImportError as exc:  # pragma: no cover - runtime environment dependent
+    raise RuntimeError(
+        f"nrlmsise00 is required for drag/thrust sweep. Install with `pip install nrlmsise00`: {exc}"
+    ) from exc
+
 # model loader (same as in orbital_thrust_minus_drag)
 def _load_model() -> tuple:
     model_path = (
@@ -49,6 +56,18 @@ def _load_model() -> tuple:
 
 def _safe_log10(x: np.ndarray, floor: float = 1e-30) -> np.ndarray:
     return np.log10(np.maximum(x, floor))
+
+
+def _predict_rbf_row(rbf, x_row: np.ndarray) -> float:
+    x_row = x_row.reshape(1, -1)
+    try:
+        return float(rbf(x_row)[0])
+    except Exception:
+        jitter = 1e-12 * np.random.randn(*x_row.shape)
+        try:
+            return float(rbf(x_row + jitter)[0])
+        except Exception:
+            return 0.0
 
 # --- Orbit / MSIS settings ---
 date = datetime(2020, 1, 1, 12, 0, 0)
@@ -91,8 +110,7 @@ inc = np.radians(inclination_deg)
 raan = np.radians(raan_deg)
 
 # load surrogate model
-rbf, x_mean, x_std, meta = _load_model()
-msis_meta = meta.get("msis", {})
+rbf, x_mean, x_std, _ = _load_model()
 
 # set up result storage for all altitudes
 results_all = {}
@@ -146,7 +164,6 @@ for ax, altitude_km in zip(axes, altitudes_km):
         lon_deg = float(np.degrees(lon_rad))
 
         # MSIS density for drag
-        from nrlmsise00 import msise_model  # type: ignore
         dens, temp = msise_model(dt, altitude_km, lat_deg, lon_deg, f107a, f107, ap)
         dens = np.array(dens, dtype=float)
         n_N2 = dens[2] * 1e6
@@ -177,22 +194,7 @@ for ax, altitude_km in zip(axes, altitudes_km):
                 _safe_log10(np.array([rate]))[0],
             ], dtype=float)
             Xs = (feat - x_mean) / x_std
-            def _evaluate_rbfs(x_array: np.ndarray) -> np.ndarray:
-                try:
-                    return rbf(x_array)
-                except Exception:
-                    uniq, inv = np.unique(x_array, axis=0, return_inverse=True)
-                    if uniq.shape[0] == 1:
-                        jitter = 1e-12 * np.random.randn(1, uniq.shape[1])
-                        try:
-                            val = float(rbf(uniq + jitter)[0])
-                        except Exception:
-                            val = 0.0
-                        return np.full(x_array.shape[0], val)
-                    else:
-                        vals = rbf(uniq)
-                        return vals[inv]
-            thrust_val = float(_evaluate_rbfs(Xs.reshape(1, -1))[0])
+            thrust_val = _predict_rbf_row(rbf, Xs)
             thrust_N[key].append(thrust_val)
             thrust_minus_drag_N[key].append(thrust_val - drag)
 

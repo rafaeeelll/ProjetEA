@@ -45,6 +45,13 @@ _m_N = 2.33e-26
 _mu_earth = 3.986004418e14  # m^3/s^2
 _r_earth = 6371e3  # m
 
+try:
+    from nrlmsise00 import msise_model  # type: ignore
+except ImportError as exc:  # pragma: no cover - runtime environment dependent
+    raise RuntimeError(
+        f"nrlmsise00 is required for drag computation. Install with `pip install nrlmsise00`: {exc}"
+    ) from exc
+
 # space weather
 records = _parse_space_weather(SPACE_WEATHER_PATH)
 f107a_map = _compute_f107a(records)
@@ -90,7 +97,6 @@ for alt in altitudes_km:
         lat_deg = float(np.degrees(lat_rad))
         lon_deg = float(np.degrees(lon_rad))
 
-        from nrlmsise00 import msise_model  # type: ignore
         dens, temp = msise_model(dt, alt, lat_deg, lon_deg, f107a, f107, ap)
         dens = np.array(dens, dtype=float)
         n_N2 = dens[2] * 1e6

@@ -18,13 +18,14 @@ from global_model_package.chamber_caracteristics import Chamber
 from global_model_package.model import GlobalModel
 from global_model_package.reactions import ElectronHeatingConstantRFPower, GeneralElasticCollision
 
-from reaction_set_N_et_O import get_neutral_atmosphere, get_species_and_reactions
+from reaction_set_N_et_O import get_species_and_reactions
+from msis_densities import get_msis_neutral_atmosphere
 
 
 # --- Validation case (single-point E09 sanity check) ---
 ALTITUDE_KM = 183.0
 POWER_RF_W = 1000.0
-ARGON_INJECTION_RATE = 1e17
+ARGON_INJECTION_RATE = 0
 
 DATE = datetime(2020, 1, 1, 12, 0, 0)
 LAT_DEG = 0.0
@@ -32,24 +33,13 @@ LON_DEG = 0.0
 
 ION_SEED = 1e10
 ELECTRON_SEED = 1e12
-COMPRESSION_RATE = 500.0
-COLLECTION_RATE = 1.0
+A_INTAKE_M2 = 1
+ETA_COLLECTION = 0.4
 
 T0 = 0.0
 TF = 1e-2
 
 FAST_MODE = True
-PLOT_SHOW = os.environ.get("E09_VALIDATION_SHOW", "1") == "1"
-SAVE_PLOT = os.environ.get("E09_VALIDATION_SAVE_PLOT", "1") == "1"
-
-OUTPUT_DIR = (
-    Path(__file__)
-    .resolve()
-    .parent.parent.parent.parent.joinpath("outputs", "e09_validation")
-)
-OUTPUT_JSON = OUTPUT_DIR.joinpath("e09_time_series_validation.json")
-OUTPUT_PNG = OUTPUT_DIR.joinpath("e09_time_series_validation.png")
-
 
 def _collision_frequency(reactions_list, state: np.ndarray) -> float:
     total = 0.0
@@ -65,7 +55,6 @@ def _as_float_array(values: list[float]) -> np.ndarray:
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     config_dict = {
         "R": 6e-2,
@@ -79,7 +68,7 @@ def main() -> None:
     }
 
     chamber = Chamber(config_dict)
-    atm = get_neutral_atmosphere(ALTITUDE_KM, lat=LAT_DEG, lon=LON_DEG, date=DATE)
+    atm = get_msis_neutral_atmosphere(ALTITUDE_KM, lat=LAT_DEG, lon=LON_DEG, date=DATE)
     species, initial_state, reactions_list, _ = get_species_and_reactions(
         chamber,
         ALTITUDE_KM,
@@ -89,8 +78,8 @@ def main() -> None:
         date=DATE,
         ion_seed=ION_SEED,
         electron_seed=ELECTRON_SEED,
-        compression_rate=COMPRESSION_RATE,
-        collection_rate=COLLECTION_RATE,
+        A_intake=A_INTAKE_M2,
+        eta_collection=ETA_COLLECTION,
         atm=atm,
     )
     electron_heating = ElectronHeatingConstantRFPower(species, POWER_RF_W, chamber)
@@ -101,7 +90,6 @@ def main() -> None:
         chamber,
         electron_heating,
         simulation_name="e09_time_series_validation",
-        log_folder_path=OUTPUT_DIR,
         fast=FAST_MODE,
     )
 
@@ -162,8 +150,8 @@ def main() -> None:
         "solver_status": int(sol.status),
         "solver_message": str(sol.message),
         "nfev": int(sol.nfev),
-        "njev": int(sol.njev),
-        "nlu": int(sol.nlu),
+        "njev": int(sol.njev) if sol.njev is not None else -1,
+        "nlu": int(sol.nlu) if sol.nlu is not None else -1,
         "n_time_points": int(len(t)),
         "has_nan_state": bool(np.isnan(y).any()),
         "has_inf_state": bool(np.isinf(y).any()),
@@ -199,8 +187,8 @@ def main() -> None:
             "lon_deg": LON_DEG,
             "ion_seed": ION_SEED,
             "electron_seed": ELECTRON_SEED,
-            "compression_rate": COMPRESSION_RATE,
-            "collection_rate": COLLECTION_RATE,
+            "A_intake_m2": A_INTAKE_M2,
+            "eta_collection": ETA_COLLECTION,
             "t0_s": T0,
             "tf_s": TF,
         },
@@ -222,65 +210,56 @@ def main() -> None:
         },
     }
 
-    with OUTPUT_JSON.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2)
-    print(f"Saved validation data: {OUTPUT_JSON}")
+    import matplotlib.pyplot as plt
 
-    if SAVE_PLOT or PLOT_SHOW:
-        import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(2, 2, figsize=(14, 9), sharex=True)
+    ax = axes[0, 0]
+    for i, name in enumerate(species_names):
+        ax.plot(t, densities[:, i], label=name)
+    ax.set_yscale("log")
+    ax.set_ylabel("Density (m$^{-3}$)")
+    ax.set_title("Species Densities")
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8, ncol=3)
 
-        fig, axes = plt.subplots(2, 2, figsize=(14, 9), sharex=True)
-        ax = axes[0, 0]
-        for i, name in enumerate(species_names):
-            ax.plot(t, densities[:, i], label=name)
-        ax.set_yscale("log")
-        ax.set_ylabel("Density (m$^{-3}$)")
-        ax.set_title("Species Densities")
-        ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=8, ncol=3)
+    ax = axes[0, 1]
+    ax.plot(t, te, label="T_e")
+    ax.plot(t, tmono, label="T_mono")
+    ax.plot(t, tdiato, label="T_diato")
+    ax.set_ylabel("Temperature (eV)")
+    ax.set_title("Temperatures")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
 
-        ax = axes[0, 1]
-        ax.plot(t, te, label="T_e")
-        ax.plot(t, tmono, label="T_mono")
-        ax.plot(t, tdiato, label="T_diato")
-        ax.set_ylabel("Temperature (eV)")
-        ax.set_title("Temperatures")
-        ax.grid(True, alpha=0.3)
-        ax.legend()
+    ax = axes[1, 0]
+    ax.plot(t, ion_thrust, label="Ion thrust")
+    ax.plot(t, neutral_thrust, label="Neutral thrust")
+    ax.plot(t, total_thrust, label="Total thrust", linewidth=2)
+    ax.plot(t, ion_current, label="Ion current")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("N / current")
+    ax.set_title("Thrust and Ion Current")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
 
-        ax = axes[1, 0]
-        ax.plot(t, ion_thrust, label="Ion thrust")
-        ax.plot(t, neutral_thrust, label="Neutral thrust")
-        ax.plot(t, total_thrust, label="Total thrust", linewidth=2)
-        ax.plot(t, ion_current, label="Ion current")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("N / current")
-        ax.set_title("Thrust and Ion Current")
-        ax.grid(True, alpha=0.3)
-        ax.legend()
+    ax = axes[1, 1]
+    ax.plot(t, absorbed_power, label="Absorbed power (W)")
+    ax2 = ax.twinx()
+    ax2.plot(t, quasi_neutral_rel, color="tab:red", linestyle="--", label="Quasi-neutral rel. err")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Power (W)")
+    ax2.set_ylabel("Relative error")
+    ax.set_title("Power and Quasi-neutrality")
+    ax.grid(True, alpha=0.3)
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, loc="best")
 
-        ax = axes[1, 1]
-        ax.plot(t, absorbed_power, label="Absorbed power (W)")
-        ax2 = ax.twinx()
-        ax2.plot(t, quasi_neutral_rel, color="tab:red", linestyle="--", label="Quasi-neutral rel. err")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Power (W)")
-        ax2.set_ylabel("Relative error")
-        ax.set_title("Power and Quasi-neutrality")
-        ax.grid(True, alpha=0.3)
-        lines1, labels1 = ax.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax.legend(lines1 + lines2, labels1 + labels2, loc="best")
+    fig.suptitle("E09 Validation at Fixed RF Power", fontsize=14)
+    fig.tight_layout()
 
-        fig.suptitle("E09 Validation at Fixed RF Power", fontsize=14)
-        fig.tight_layout()
-        if SAVE_PLOT:
-            fig.savefig(OUTPUT_PNG, dpi=200)
-            print(f"Saved validation plot: {OUTPUT_PNG}")
-        if PLOT_SHOW:
-            plt.show()
-        else:
-            plt.close(fig)
+    plt.show()
+
 
 
 if __name__ == "__main__":

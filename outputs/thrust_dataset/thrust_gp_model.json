@@ -1,19 +1,14 @@
 {
   "model": "GaussianProcessRegressor",
+  "dataset": "/Users/rafaelcorradi/Code/ProjetEA/outputs/thrust_dataset/thrust_dataset_msis.json",
+  "n_samples_used": 459,
   "features": [
     "log10_N2_m3",
     "log10_O2_m3",
     "log10_O_m3",
     "log10_N_m3",
     "T_K",
-    "log10_argon_eps",
-    "log10_mdot_in_kg_s",
     "log10_intake_area_m2"
   ],
-  "n_samples": 1500,
-  "n_samples_total": 7897,
-  "max_train_samples": 1500,
-  "train_subsample_seed": 42,
-  "kernel_optimized": "1.26**2 * RBF(length_scale=[3.07, 7.92, 8.4, 117, 888, 1.41, 0.424, 1]) + WhiteKernel(noise_level=9.75e-09)",
-  "dataset": "/Users/rafaelcorradi/Code/ProjetEA/outputs/thrust_dataset/thrust_gp_dataset.json"
+  "kernel_optimized": "3.21**2 * Matern(length_scale=[17.1, 80.7, 39.5, 8.34e+03, 1e+04, 9.07], nu=1.5) + WhiteKernel(noise_level=2.91e-09)"
 }

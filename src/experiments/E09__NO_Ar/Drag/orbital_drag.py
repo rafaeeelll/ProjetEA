@@ -49,6 +49,13 @@ _m_N = 2.33e-26
 _mu_earth = 3.986004418e14  # m^3/s^2
 _r_earth = 6371e3  # m
 
+try:
+    from nrlmsise00 import msise_model  # type: ignore
+except ImportError as exc:  # pragma: no cover - runtime environment dependent
+    raise RuntimeError(
+        f"nrlmsise00 is required for drag computation. Install with `pip install nrlmsise00`: {exc}"
+    ) from exc
+
 # compute orbital radius and speed (assume circular)
 radius = _r_earth + altitude_km * 1000.0
 orbital_speed = np.sqrt(_mu_earth / radius)  # m/s
@@ -64,13 +71,6 @@ def _msis_mass_density(
     ap: float,
 ) -> float:
     """Return mass density (kg/m^3) from nrlmsise00 at the requested point."""
-    try:
-        from nrlmsise00 import msise_model  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError(
-            f"nrlmsise00 is required for drag computation. Install with `pip install nrlmsise00`: {exc}"
-        )
-
     dens, temp = msise_model(dt, alt_km, lat_deg, lon_deg, f107a, f107, ap)
     dens = np.array(dens, dtype=float)
 
@@ -87,18 +87,6 @@ def _msis_mass_density(
         + n_N * _m_N
     )
     return float(rho)
-
-
-def _compute_orbital_lat_lon(t: float) -> tuple[float, float]:
-    """Return (lat_deg, lon_deg) of spacecraft after elapsed time t (s)."""
-    # based on code in orbital_thrust
-    inc = np.radians(inclination_deg)
-    raan = np.radians(raan_deg)
-    u0 = 0.0
-
-    u = u0 + t * 0  # placeholder, we will compute angle externally
-    # this helper doesn't actually get used; see main loop below
-    return 0.0, 0.0
 
 
 # --- run sweep and gather drag values ---

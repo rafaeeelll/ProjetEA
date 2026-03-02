@@ -11,7 +11,6 @@ from scipy.constants import pi
 
 try:
     import global_model_package
-    print("'global_model_package' imported as pip package or already in sys.path.")
 except ModuleNotFoundError:
     global_model_package_path = Path(__file__).resolve().parent.parent.parent.joinpath("global_model_package")
     sys.path.append(str(global_model_package_path))
@@ -24,31 +23,38 @@ E09_DIR = Path(__file__).resolve().parent
 if str(E09_DIR) not in sys.path:
     sys.path.append(str(E09_DIR))
 
-from reaction_set_N_et_O import get_species_and_reactions, get_neutral_atmosphere
-from msis_densities import _compute_f107a, _parse_space_weather, _space_weather_params, SPACE_WEATHER_PATH
+from reaction_set_N_et_O import get_species_and_reactions
+from msis_densities import (
+    _compute_f107a,
+    _parse_space_weather,
+    _space_weather_params,
+    SPACE_WEATHER_PATH,
+    get_msis_neutral_atmosphere,
+)
 
 
 # --- Orbital sweep settings ---
 altitude_km = 183.0
 power_w = 1000
 FAST_MODE = True
+VERBOSE = os.environ.get("E09_ORBIT_VERBOSE", "0") == "1"
 
 # --- Orbit / MSIS inputs ---
 date = datetime(2020, 1, 1, 12, 0, 0)
 lat = 0.0
 lon = 0.0
-inclination_deg = 51.6
+inclination_deg = 45
 raan_deg = lon
-orbit_points = 90
+orbit_points = 30
 
 # --- Space weather from file (F10.7, F10.7A, Ap) ---
 records = _parse_space_weather(SPACE_WEATHER_PATH)
 f107a_map = _compute_f107a(records)
 f107, f107a, ap = _space_weather_params(date, records, f107a_map)
 
-# --- Reference atmosphere at 250 km ---
-atm_ref = get_neutral_atmosphere(altitude_km, lat=lat, lon=lon, date=date)
-print(f"Reference MSIS pressure at 183 km: {atm_ref['pressure_pa']:.3e} Pa")
+# --- Reference atmosphere at the simulation altitude ---
+atm_ref = get_msis_neutral_atmosphere(altitude_km, lat=lat, lon=lon, date=date)
+print(f"Reference MSIS pressure at {altitude_km:.0f} km: {atm_ref['pressure_pa']:.3e} Pa")
 
 # --- Chamber config (gridded thruster mode) ---
 config_dict = {
@@ -61,6 +67,7 @@ config_dict = {
     "N": 5,
     "R_coil": 2,
 }
+A_INTAKE_M2 = 1
 
 log_folder_path = Path(__file__).resolve().parent.parent.parent.parent.joinpath("outputs", "logs_for_thrust_by_altitude")
 os.makedirs(log_folder_path, exist_ok=True)
@@ -140,7 +147,7 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
         lat_deg = float(np.degrees(lat_rad))
         lon_deg = float(np.degrees(lon_rad))
 
-        atm = get_neutral_atmosphere(
+        atm = get_msis_neutral_atmosphere(
             altitude_km,
             lat=lat_deg,
             lon=lon_deg,
@@ -157,9 +164,8 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
             lat=lat_deg,
             lon=lon_deg,
             date=dt,
-            ion_seed=1e10,
-            electron_seed=1e12,
             argon_injection_rate=argon_injection_rate,
+            A_intake=A_INTAKE_M2,
             atm=atm,
         )
 
@@ -175,13 +181,13 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
         )
 
         try:
-            print(f"Solving model for theta={theta:.3f} rad (lat={lat_deg:.2f}, lon={lon_deg:.2f})...")
+            if VERBOSE:
+                print(f"Solving model for theta={theta:.3f} rad (lat={lat_deg:.2f}, lon={lon_deg:.2f})...")
             sol = model.solve(0, 1e-2, initial_state)
-            print("Model resolved!")
+            if VERBOSE:
+                print("Model resolved!")
         except Exception as exception:
-            print("Entering exception...")
             model.var_tracker.save_tracked_variables()
-            print("Variables saved")
             raise exception
 
         final_state = sol.y[:, -1]
@@ -189,7 +195,8 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
         neutral_thrust = model.total_neutral_thrust(final_state)
         total_thrust = model.total_thrust(final_state)
 
-        results["angles_rad"].append(float(theta))
+        if len(results["angles_rad"]) < orbit_points:
+            results["angles_rad"].append(float(theta))
         results[case_key]["ion_thrust_N"].append(float(ion_thrust))
         results[case_key]["neutral_thrust_N"].append(float(neutral_thrust))
         results[case_key]["total_thrust_N"].append(float(total_thrust))
