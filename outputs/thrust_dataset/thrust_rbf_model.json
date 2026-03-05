@@ -1,0 +1,16 @@
+{
+  "model": "RBFInterpolator",
+  "dataset": "c:\\Users\\mathe\\OneDrive\\Bureau\\X\\Cours\\3A\\Projets\\CODES\\ProjetEA\\outputs\\thrust_dataset\\thrust_dataset_msis.json",
+  "n_samples_used": 460,
+  "features": [
+    "log10_N2_m3",
+    "log10_O2_m3",
+    "log10_O_m3",
+    "log10_N_m3",
+    "T_K",
+    "log10_intake_area_m2"
+  ],
+  "kernel": "thin_plate_spline",
+  "smoothing": 1e-08,
+  "neighbors": 46
+}
