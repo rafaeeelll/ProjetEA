@@ -18,10 +18,10 @@ MODEL_PATH = PROJECT_ROOT.joinpath("outputs", "thrust_dataset", "thrust_gp_model
 LOG_PATH = PROJECT_ROOT.joinpath("outputs", "thrust_dataset", "active_learning_log.json")
 
 DATE_REF = datetime(2020, 1, 1, 12, 0, 0)
-ALTITUDE_BOUNDS_KM = (170.0, 240.0)
-INCLINATION_BOUNDS_DEG = (0.0, 98.0)
-RAAN_BOUNDS_DEG = (-180.0, 180.0)
-LOG10_AREA_BOUNDS = (np.log10(1e-2), np.log10(0.5))
+ALTITUDE_BOUNDS_KM = (150.0, 240.0)
+FIXED_INCLINATION_DEG = 20.0
+FIXED_RAAN_DEG = -13.0
+LOG10_AREA_BOUNDS = (np.log10(1e-2), np.log10(1.0))
 
 EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
@@ -31,6 +31,7 @@ M_N2 = 4.65e-26
 M_O2 = 5.31e-26
 M_O = 2.67e-26
 M_N = 2.33e-26
+G0 = 9.81
 
 
 def _safe_log10(x: np.ndarray, floor: float = 1e-30) -> np.ndarray:
@@ -44,7 +45,6 @@ def _sample_to_feature(s: dict) -> np.ndarray:
             float(_safe_log10(np.array([float(s["O2_m3"])]))[0]),
             float(_safe_log10(np.array([float(s["O_m3"])]))[0]),
             float(_safe_log10(np.array([float(s["N_m3"])]))[0]),
-            float(s["T_K"]),
             float(_safe_log10(np.array([float(s["intake_area_m2"])]))[0]),
         ],
         dtype=float,
@@ -147,8 +147,29 @@ def _drag_newton(sample: dict, cd: float) -> float:
     return 0.5 * rho * u * u * float(cd) * a
 
 
+def _mass_flow_kg_s(sample: dict) -> float:
+    eta_collection = float(sample.get("eta_collection", ETA_COLLECTION))
+    collection_rate = float(sample.get("collection_rate", 1.0))
+    u = float(sample["orbital_speed_m_s"])
+    a = float(sample["intake_area_m2"])
+    capture = max(eta_collection, 0.0) * max(collection_rate, 0.0) * max(u, 0.0) * max(a, 0.0)
+    n2 = float(sample["N2_m3"])
+    o2 = float(sample["O2_m3"])
+    o = float(sample["O_m3"])
+    n = float(sample["N_m3"])
+    return capture * (n2 * M_N2 + o2 * M_O2 + o * M_O + n * M_N)
+
+
+def _isp_s(thrust_n: float, mdot_kg_s: float) -> float:
+    if mdot_kg_s <= 0.0:
+        return float("inf")
+    return float(thrust_n / (mdot_kg_s * G0))
+
+
 def _design_to_orbit_samples(
     design: np.ndarray,
+    fixed_inclination_deg: float,
+    fixed_raan_deg: float,
     date_ref: datetime,
     records: dict,
     f107a_map: dict,
@@ -158,9 +179,9 @@ def _design_to_orbit_samples(
     from msis_densities import _space_weather_params
 
     altitude_km = float(design[0])
-    inclination_deg = float(design[1])
-    raan_deg = float(design[2])
-    area_m2 = float(10 ** float(design[3]))
+    inclination_deg = float(fixed_inclination_deg)
+    raan_deg = float(fixed_raan_deg)
+    area_m2 = float(10 ** float(design[1]))
 
     thetas = np.linspace(0.0, 2.0 * np.pi, int(points_per_orbit), endpoint=False)
     samples: list[dict] = []
@@ -204,6 +225,8 @@ def _design_to_orbit_samples(
 
 def _predict_design_stats(
     design: np.ndarray,
+    fixed_inclination_deg: float,
+    fixed_raan_deg: float,
     gp,
     x_mean: np.ndarray,
     x_std: np.ndarray,
@@ -216,6 +239,8 @@ def _predict_design_stats(
 ) -> dict:
     samples = _design_to_orbit_samples(
         design=design,
+        fixed_inclination_deg=fixed_inclination_deg,
+        fixed_raan_deg=fixed_raan_deg,
         date_ref=date_ref,
         records=records,
         f107a_map=f107a_map,
@@ -246,6 +271,8 @@ def _predict_design_stats(
 
 
 def _optimize_design(
+    fixed_inclination_deg: float,
+    fixed_raan_deg: float,
     gp,
     x_mean: np.ndarray,
     x_std: np.ndarray,
@@ -259,14 +286,14 @@ def _optimize_design(
 ) -> tuple[np.ndarray, dict]:
     bounds = [
         (ALTITUDE_BOUNDS_KM[0], ALTITUDE_BOUNDS_KM[1]),
-        (INCLINATION_BOUNDS_DEG[0], INCLINATION_BOUNDS_DEG[1]),
-        (RAAN_BOUNDS_DEG[0], RAAN_BOUNDS_DEG[1]),
         (LOG10_AREA_BOUNDS[0], LOG10_AREA_BOUNDS[1]),
     ]
 
     def objective(z: np.ndarray) -> float:
         stats = _predict_design_stats(
             design=np.asarray(z, dtype=float),
+            fixed_inclination_deg=fixed_inclination_deg,
+            fixed_raan_deg=fixed_raan_deg,
             gp=gp,
             x_mean=x_mean,
             x_std=x_std,
@@ -293,6 +320,8 @@ def _optimize_design(
     design_star = np.asarray(res.x, dtype=float)
     stats_star = _predict_design_stats(
         design=design_star,
+        fixed_inclination_deg=fixed_inclination_deg,
+        fixed_raan_deg=fixed_raan_deg,
         gp=gp,
         x_mean=x_mean,
         x_std=x_std,
@@ -308,6 +337,8 @@ def _optimize_design(
 
 def _evaluate_true_design_min_margin(
     design: np.ndarray,
+    fixed_inclination_deg: float,
+    fixed_raan_deg: float,
     cd: float,
     fast_mode: bool,
     date_ref: datetime,
@@ -317,6 +348,8 @@ def _evaluate_true_design_min_margin(
 ) -> dict:
     samples = _design_to_orbit_samples(
         design=design,
+        fixed_inclination_deg=fixed_inclination_deg,
+        fixed_raan_deg=fixed_raan_deg,
         date_ref=date_ref,
         records=records,
         f107a_map=f107a_map,
@@ -324,18 +357,31 @@ def _evaluate_true_design_min_margin(
     )
     margins: list[float] = []
     thrusts: list[float] = []
+    mdots: list[float] = []
+    isps: list[float] = []
     for s in samples:
         thrust = float(_thrust_for_sample(s, fast_mode=fast_mode))
         drag = float(_drag_newton(s, cd=cd))
+        mdot = float(_mass_flow_kg_s(s))
+        isp = float(_isp_s(thrust, mdot))
         margins.append(thrust - drag)
         thrusts.append(thrust)
+        mdots.append(mdot)
+        isps.append(isp)
     margins_arr = np.asarray(margins, dtype=float)
+    mdots_arr = np.asarray(mdots, dtype=float)
+    isps_arr = np.asarray(isps, dtype=float)
     idx = int(np.argmin(margins_arr))
     return {
         "true_min_margin_N": float(np.min(margins_arr)),
         "true_min_margin_idx": idx,
         "true_min_margin_theta_rad": float(samples[idx]["theta_rad"]),
         "true_thrust_at_min_margin_N": float(thrusts[idx]),
+        "true_mdot_at_min_margin_kg_s": float(mdots_arr[idx]),
+        "true_isp_at_min_margin_s": float(isps_arr[idx]),
+        "true_isp_min_s": float(np.min(isps_arr)),
+        "true_isp_mean_s": float(np.mean(isps_arr)),
+        "true_isp_max_s": float(np.max(isps_arr)),
     }
 
 
@@ -348,8 +394,10 @@ def main() -> None:
     parser.add_argument("--improve-tol", type=float, default=1e-6, help="Minimum robust-objective improvement in N to reset patience.")
     parser.add_argument("--beta-lcb", type=float, default=2.0, help="LCB exploration weight for robust objective.")
     parser.add_argument("--cd", type=float, default=2.2, help="Front drag coefficient.")
-    parser.add_argument("--orbit-points", type=int, default=12, help="Points used on each orbit for objective evaluation.")
+    parser.add_argument("--orbit-points", type=int, default=36, help="Points used on each orbit for objective evaluation.")
     parser.add_argument("--design-maxiter", type=int, default=20, help="Inner differential-evolution maxiter.")
+    parser.add_argument("--fixed-inclination-deg", type=float, default=FIXED_INCLINATION_DEG, help="Fixed orbital inclination.")
+    parser.add_argument("--fixed-raan-deg", type=float, default=FIXED_RAAN_DEG, help="Fixed RAAN.")
     parser.add_argument("--fast", action="store_true", help="Use fast mode for true 0D solves.")
     parser.add_argument("--final-verify", action="store_true", help="Run a final true full-orbit min-margin verification.")
     args = parser.parse_args()
@@ -372,6 +420,8 @@ def main() -> None:
         x_train, y_train = _train_arrays(samples)
 
         design_star, stats = _optimize_design(
+            fixed_inclination_deg=float(args.fixed_inclination_deg),
+            fixed_raan_deg=float(args.fixed_raan_deg),
             gp=gp,
             x_mean=x_mean,
             x_std=x_std,
@@ -388,17 +438,25 @@ def main() -> None:
         bottleneck = dict(stats["samples"][idx_b])
         bottleneck["selected_by_bo_iteration"] = int(it)
         bottleneck["design_altitude_km"] = float(design_star[0])
-        bottleneck["design_inclination_deg"] = float(design_star[1])
-        bottleneck["design_raan_deg"] = float(design_star[2])
-        bottleneck["design_intake_area_m2"] = float(10 ** float(design_star[3]))
+        bottleneck["design_inclination_deg"] = float(args.fixed_inclination_deg)
+        bottleneck["design_raan_deg"] = float(args.fixed_raan_deg)
+        bottleneck["design_intake_area_m2"] = float(10 ** float(design_star[1]))
 
         try:
             true_thrust = float(_thrust_for_sample(bottleneck, fast_mode=bool(args.fast)))
+            true_mdot = float(_mass_flow_kg_s(bottleneck))
+            true_isp = float(_isp_s(true_thrust, true_mdot))
             bottleneck["total_thrust_N"] = true_thrust
+            bottleneck["mdot_kg_s"] = true_mdot
+            bottleneck["isp_s"] = true_isp
             bottleneck["needs_simulation"] = False
         except Exception as exc:
             true_thrust = 0.0
+            true_mdot = 0.0
+            true_isp = 0.0
             bottleneck["total_thrust_N"] = 0.0
+            bottleneck["mdot_kg_s"] = 0.0
+            bottleneck["isp_s"] = 0.0
             bottleneck["needs_simulation"] = False
             bottleneck["simulation_error"] = str(exc)
 
@@ -426,15 +484,17 @@ def main() -> None:
             "iteration": int(it),
             "train_count": int(len(y_train)),
             "design_altitude_km": float(design_star[0]),
-            "design_inclination_deg": float(design_star[1]),
-            "design_raan_deg": float(design_star[2]),
-            "design_intake_area_m2": float(10 ** float(design_star[3])),
+            "design_inclination_deg": float(args.fixed_inclination_deg),
+            "design_raan_deg": float(args.fixed_raan_deg),
+            "design_intake_area_m2": float(10 ** float(design_star[1])),
             "j_mu_N": float(stats["j_mu_N"]),
             "j_lcb_N": j_lcb,
             "sigma_bottleneck_N": float(stats["sigma_bottleneck_N"]),
             "sigma_target_N": float(sigma_target),
             "sigma_ok": bool(sigma_ok),
             "true_thrust_bottleneck_N": float(true_thrust),
+            "true_mdot_bottleneck_kg_s": float(true_mdot),
+            "true_isp_bottleneck_s": float(true_isp),
             "improved_best_lcb": bool(improved),
             "best_j_lcb_so_far_N": float(best_j_lcb),
             "check_now": bool(check_now),
@@ -457,6 +517,8 @@ def main() -> None:
     if best_design is not None and bool(args.final_verify):
         verify = _evaluate_true_design_min_margin(
             design=best_design,
+            fixed_inclination_deg=float(args.fixed_inclination_deg),
+            fixed_raan_deg=float(args.fixed_raan_deg),
             cd=float(args.cd),
             fast_mode=bool(args.fast),
             date_ref=DATE_REF,
@@ -466,9 +528,9 @@ def main() -> None:
         )
         final_summary["best_design"] = {
             "altitude_km": float(best_design[0]),
-            "inclination_deg": float(best_design[1]),
-            "raan_deg": float(best_design[2]),
-            "intake_area_m2": float(10 ** float(best_design[3])),
+            "inclination_deg": float(args.fixed_inclination_deg),
+            "raan_deg": float(args.fixed_raan_deg),
+            "intake_area_m2": float(10 ** float(best_design[1])),
         }
         final_summary.update(verify)
         print(
@@ -489,6 +551,10 @@ def main() -> None:
                     "cd": float(args.cd),
                     "orbit_points": int(args.orbit_points),
                     "design_maxiter": int(args.design_maxiter),
+                    "fixed_inclination_deg": float(args.fixed_inclination_deg),
+                    "fixed_raan_deg": float(args.fixed_raan_deg),
+                    "altitude_bounds_km": [float(ALTITUDE_BOUNDS_KM[0]), float(ALTITUDE_BOUNDS_KM[1])],
+                    "intake_area_bounds_m2": [float(10 ** LOG10_AREA_BOUNDS[0]), float(10 ** LOG10_AREA_BOUNDS[1])],
                     "eta_collection": float(ETA_COLLECTION),
                 },
                 "iterations": log_rows,
