@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import pickle
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -11,6 +12,15 @@ from scipy.optimize import differential_evolution
 
 from compute_thrust_for_dataset import ETA_COLLECTION, _thrust_for_sample
 
+E09_DIR = Path(__file__).resolve().parents[1]
+if str(E09_DIR) not in sys.path:
+    sys.path.append(str(E09_DIR))
+from Drag.drag_model import (
+    A_BODY_M2_DEFAULT,
+    CD_BODY_DEFAULT,
+    drag_total_from_sample,
+    mass_density_from_sample,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DATASET_PATH = PROJECT_ROOT.joinpath("outputs", "thrust_dataset", "thrust_dataset_msis.json")
@@ -27,11 +37,11 @@ EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
 EARTH_OMEGA = 7.2921159e-5
 
-M_N2 = 4.65e-26
-M_O2 = 5.31e-26
-M_O = 2.67e-26
-M_N = 2.33e-26
 G0 = 9.81
+
+# -- Drag model -------------------------------------------------
+A_BODY_M2 = A_BODY_M2_DEFAULT
+CD_BODY = CD_BODY_DEFAULT
 
 
 def _safe_log10(x: np.ndarray, floor: float = 1e-30) -> np.ndarray:
@@ -131,20 +141,16 @@ def _orbit_state(
     return dt, lat_deg, lon_deg, float(orbital_speed_m_s)
 
 
-def _mass_density(sample: dict) -> float:
-    return (
-        float(sample["N2_m3"]) * M_N2
-        + float(sample["O2_m3"]) * M_O2
-        + float(sample["O_m3"]) * M_O
-        + float(sample["N_m3"]) * M_N
+def _drag_newton(
+    sample: dict,
+    cd_body: float = CD_BODY,
+    A_body_m2: float = A_BODY_M2,
+) -> float:
+    return drag_total_from_sample(
+        sample=sample,
+        cd_body=cd_body,
+        a_body_m2=A_body_m2,
     )
-
-
-def _drag_newton(sample: dict, cd: float) -> float:
-    rho = _mass_density(sample)
-    u = float(sample["orbital_speed_m_s"])
-    a = float(sample["intake_area_m2"])
-    return 0.5 * rho * u * u * float(cd) * a
 
 
 def _mass_flow_kg_s(sample: dict) -> float:
@@ -153,11 +159,7 @@ def _mass_flow_kg_s(sample: dict) -> float:
     u = float(sample["orbital_speed_m_s"])
     a = float(sample["intake_area_m2"])
     capture = max(eta_collection, 0.0) * max(collection_rate, 0.0) * max(u, 0.0) * max(a, 0.0)
-    n2 = float(sample["N2_m3"])
-    o2 = float(sample["O2_m3"])
-    o = float(sample["O_m3"])
-    n = float(sample["N_m3"])
-    return capture * (n2 * M_N2 + o2 * M_O2 + o * M_O + n * M_N)
+    return capture * mass_density_from_sample(sample)
 
 
 def _isp_s(thrust_n: float, mdot_kg_s: float) -> float:
@@ -231,7 +233,8 @@ def _predict_design_stats(
     x_mean: np.ndarray,
     x_std: np.ndarray,
     beta_lcb: float,
-    cd: float,
+    cd_body: float,
+    A_body_m2: float,
     date_ref: datetime,
     records: dict,
     f107a_map: dict,
@@ -249,7 +252,10 @@ def _predict_design_stats(
     x = np.array([_sample_to_feature(s) for s in samples], dtype=float)
     xs = (x - x_mean) / x_std
     mu, sigma = gp.predict(xs, return_std=True)
-    drag = np.array([_drag_newton(s, cd=cd) for s in samples], dtype=float)
+    drag = np.array(
+        [_drag_newton(s, cd_body=cd_body, A_body_m2=A_body_m2) for s in samples],
+        dtype=float,
+    )
     margin_mu = mu - drag
     margin_lcb = margin_mu - float(beta_lcb) * sigma
     idx = int(np.argmin(margin_lcb))
@@ -277,7 +283,8 @@ def _optimize_design(
     x_mean: np.ndarray,
     x_std: np.ndarray,
     beta_lcb: float,
-    cd: float,
+    cd_body: float,
+    A_body_m2: float,
     date_ref: datetime,
     records: dict,
     f107a_map: dict,
@@ -298,7 +305,8 @@ def _optimize_design(
             x_mean=x_mean,
             x_std=x_std,
             beta_lcb=beta_lcb,
-            cd=cd,
+            cd_body=cd_body,
+            A_body_m2=A_body_m2,
             date_ref=date_ref,
             records=records,
             f107a_map=f107a_map,
@@ -326,7 +334,8 @@ def _optimize_design(
         x_mean=x_mean,
         x_std=x_std,
         beta_lcb=beta_lcb,
-        cd=cd,
+        cd_body=cd_body,
+        A_body_m2=A_body_m2,
         date_ref=date_ref,
         records=records,
         f107a_map=f107a_map,
@@ -339,7 +348,8 @@ def _evaluate_true_design_min_margin(
     design: np.ndarray,
     fixed_inclination_deg: float,
     fixed_raan_deg: float,
-    cd: float,
+    cd_body: float,
+    A_body_m2: float,
     fast_mode: bool,
     date_ref: datetime,
     records: dict,
@@ -361,7 +371,7 @@ def _evaluate_true_design_min_margin(
     isps: list[float] = []
     for s in samples:
         thrust = float(_thrust_for_sample(s, fast_mode=fast_mode))
-        drag = float(_drag_newton(s, cd=cd))
+        drag = float(_drag_newton(s, cd_body=cd_body, A_body_m2=A_body_m2))
         mdot = float(_mass_flow_kg_s(s))
         isp = float(_isp_s(thrust, mdot))
         margins.append(thrust - drag)
@@ -393,7 +403,18 @@ def main() -> None:
     parser.add_argument("--patience", type=int, default=3, help="Number of check windows without significant improvement.")
     parser.add_argument("--improve-tol", type=float, default=1e-6, help="Minimum robust-objective improvement in N to reset patience.")
     parser.add_argument("--beta-lcb", type=float, default=2.0, help="LCB exploration weight for robust objective.")
-    parser.add_argument("--cd", type=float, default=2.2, help="Front drag coefficient.")
+    parser.add_argument(
+        "--cd-body",
+        type=float,
+        default=CD_BODY,
+        help="Drag coefficient for satellite body (FMF, convention 0.5*rho*u^2*Cd*A).",
+    )
+    parser.add_argument(
+        "--body-area",
+        type=float,
+        default=A_BODY_M2,
+        help="Frontal cross-section of satellite body excluding intake [m^2].",
+    )
     parser.add_argument("--orbit-points", type=int, default=36, help="Points used on each orbit for objective evaluation.")
     parser.add_argument("--design-maxiter", type=int, default=20, help="Inner differential-evolution maxiter.")
     parser.add_argument("--fixed-inclination-deg", type=float, default=FIXED_INCLINATION_DEG, help="Fixed orbital inclination.")
@@ -426,7 +447,8 @@ def main() -> None:
             x_mean=x_mean,
             x_std=x_std,
             beta_lcb=float(args.beta_lcb),
-            cd=float(args.cd),
+            cd_body=float(args.cd_body),
+            A_body_m2=float(args.body_area),
             date_ref=DATE_REF,
             records=records,
             f107a_map=f107a_map,
@@ -519,7 +541,8 @@ def main() -> None:
             design=best_design,
             fixed_inclination_deg=float(args.fixed_inclination_deg),
             fixed_raan_deg=float(args.fixed_raan_deg),
-            cd=float(args.cd),
+            cd_body=float(args.cd_body),
+            A_body_m2=float(args.body_area),
             fast_mode=bool(args.fast),
             date_ref=DATE_REF,
             records=records,
@@ -548,7 +571,8 @@ def main() -> None:
                     "patience": int(args.patience),
                     "improve_tol_N": float(args.improve_tol),
                     "beta_lcb": float(args.beta_lcb),
-                    "cd": float(args.cd),
+                    "cd_body": float(args.cd_body),
+                    "body_area_m2": float(args.body_area),
                     "orbit_points": int(args.orbit_points),
                     "design_maxiter": int(args.design_maxiter),
                     "fixed_inclination_deg": float(args.fixed_inclination_deg),

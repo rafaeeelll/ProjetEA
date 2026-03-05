@@ -19,6 +19,12 @@ from msis_densities import (
     _space_weather_params,
     SPACE_WEATHER_PATH,
 )
+from Drag.drag_model import (
+    A_BODY_M2_DEFAULT,
+    CD_BODY_DEFAULT,
+    drag_total_fmf,
+    mass_density_from_number_densities,
+)
 
 # --- Orbit / MSIS settings (copied from orbital_thrust) ---
 altitude_km = 183.0
@@ -35,15 +41,9 @@ f107a_map = _compute_f107a(records)
 f107, f107a, ap = _space_weather_params(date, records, f107a_map)
 
 # --- constants for drag calculation ---
-# simple constant drag coefficient * area approach; values taken from optimize_orbit
-CD = 2.2
-CROSS_SECTION_AREA_M2 = 1.0
-
-# mass of species in kg
-_m_N2 = 4.65e-26
-_m_O2 = 5.31e-26
-_m_O = 2.67e-26
-_m_N = 2.33e-26
+INTAKE_AREA_M2 = 1.0
+CD_BODY = CD_BODY_DEFAULT
+A_BODY_M2 = A_BODY_M2_DEFAULT
 
 # Earth   
 _mu_earth = 3.986004418e14  # m^3/s^2
@@ -80,11 +80,11 @@ def _msis_mass_density(
     n_O = dens[1] * 1e6
     n_N = dens[7] * 1e6
 
-    rho = (
-        n_N2 * _m_N2
-        + n_O2 * _m_O2
-        + n_O * _m_O
-        + n_N * _m_N
+    rho = mass_density_from_number_densities(
+        n2_m3=n_N2,
+        o2_m3=n_O2,
+        o_m3=n_O,
+        n_m3=n_N,
     )
     return float(rho)
 
@@ -129,7 +129,13 @@ for theta in np.linspace(0.0, 2.0 * pi, orbit_points, endpoint=False):
     lon_deg = float(np.degrees(lon_rad))
 
     rho = _msis_mass_density(altitude_km, lat_deg, lon_deg, dt, f107, f107a, ap)
-    drag = 0.5 * rho * orbital_speed ** 2 * CD * CROSS_SECTION_AREA_M2
+    drag = drag_total_fmf(
+        rho=rho,
+        speed_m_s=orbital_speed,
+        intake_area_m2=INTAKE_AREA_M2,
+        cd_body=CD_BODY,
+        a_body_m2=A_BODY_M2,
+    )
 
     angles_rad.append(float(theta))
     drag_N.append(drag)

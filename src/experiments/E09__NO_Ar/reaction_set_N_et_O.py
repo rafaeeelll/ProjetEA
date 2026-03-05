@@ -28,23 +28,58 @@ OUTLET_AREA_M2 = 0.01
 EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
 
+def compute_beta(u_orbital, T_wall_K, A_intake, A_outlet, eta_c, m_species):
+    """
+    Compression ratio semi-empirique pour intake passif en régime 
+    moléculaire libre (Kn >> 1).
+    
+    Basé sur le bilan stationnaire :
+        flux_in = η_c · n∞ · u_orb · A_intake
+        flux_out ≈ n_chamber · (v̄_th/4) · A_eff
+        
+    avec A_eff >> A_outlet (inclut les pertes aux parois, backflow, etc.)
+    
+    On utilise un facteur correctif empirique pour tenir compte du fait
+    qu'un intake passif ne peut pas comprimer au-delà de ~200 (Romano et al.)
+    """
+    # Vitesse thermique moyenne à T_wall (distribution de Maxwell)
+    v_th = np.sqrt(8 * k_B * T_wall_K / (np.pi * m_species))
+    
+    # Compression de stagnation (limite thermodynamique du ram)
+    S = u_orbital / v_th  # speed ratio
+    beta_stag = S * np.sqrt(np.pi) / 2  # ≈ 15-30 typiquement
+    
+    # Facteur géométrique (rapport d'aires effectif, atténué par les pertes)
+    AR = A_intake / A_outlet
+    # L'efficacité de collection trade-off avec la compression
+    # Plus η_c est grand, plus on "ouvre" l'intake → moins on comprime
+    geometric_factor = np.sqrt(AR) * (1 - eta_c)  # empirique
+    
+    beta = beta_stag * geometric_factor
+    
+    # Borner à des valeurs physiquement réalistes pour un intake passif
+    beta = np.clip(beta, 1.0, 200.0)
+    
+    return beta
 
 def get_species_and_reactions(
-    chamber,
-    altitude,
-    argon_injection_rate,
-    lat=DEFAULT_MSIS_LAT,
-    lon=DEFAULT_MSIS_LON,
-    date=DEFAULT_MSIS_DATE,
-    f107=DEFAULT_MSIS_F107,
-    f107a=DEFAULT_MSIS_F107A,
-    ap=DEFAULT_MSIS_AP,
-    ion_seed=1e8,
-    electron_seed=1e12,
-    A_intake=None,
-    eta_collection=0.4,
-    orbital_speed=None,
-    atm=None,
+    chamber,                   #caractéristiques de la chambre
+    altitude,                  #altitude en km pour récupérer les densités MSIS
+    argon_injection_rate,      #taux d'injection d'argon en moles/s
+    lat=DEFAULT_MSIS_LAT,      #latitude pour les densités MSIS
+    lon=DEFAULT_MSIS_LON,      #longitude pour les densités MSIS
+    date=DEFAULT_MSIS_DATE,    #date pour les densités MSIS
+    f107=DEFAULT_MSIS_F107,    #indices de l'activité solaire pour les densités MSIS
+    f107a=DEFAULT_MSIS_F107A,  #idem
+    ap=DEFAULT_MSIS_AP,        #indices de l'activité géomagnétique pour les densités MSIS
+    ion_seed=1e8,              #densité initiale d'ions (pour éviter les divisions par zéro dans les réactions d'ionisation)
+    electron_seed=1e12,        #densité initiale d'électrons
+    A_intake=None,             #aire d'entrée de l'intake en m² (si None, on considère 1 m² pour le calcul de β)
+    eta_collection=0.4,        #efficacité de collection de l'intake
+    orbital_speed=None,        #vitesse orbitale en m/s (si None, on la calcule à partir de l'altitude)
+    atm=None,                  #dictionnaire de densités et températures MSIS (si None, on les récupère à partir des autres paramètres)
+    T_wall_K=300.0,            #température des parois de l'intake
+    beta_override=None,        #forcer β manuellement si besoin
 ):
 
     species = Species([Specie("e", m_e, -e, 0, 3/2), Specie("Ar", 6.63e-26, 0, 1, 3/2), Specie("Ar+", 6.63e-26, e, 1, 3/2), Specie("N2", 4.65e-26, 0, 2, 5/2), Specie("N", 2.33e-26, 0, 1, 3/2), Specie("N2+", 4.65e-26, e, 2, 5/2), Specie("N+", 2.33e-26, e, 1, 3/2), Specie("O2+", 5.31e-26, e, 2, 5/2), Specie("O2", 5.31e-26, 0, 2, 5/2), Specie("O", 2.67e-26, 0, 1, 3/2), Specie("O+", 2.67e-26, e, 1, 3/2)])
@@ -61,53 +96,77 @@ def get_species_and_reactions(
         )
 
     if A_intake is None:
-        A_intake = 1
-
-    tau_c = A_intake / OUTLET_AREA_M2
+        A_intake = 1.0
 
     if orbital_speed is None:
         r_orbit = EARTH_RADIUS_M + altitude * 1e3
         orbital_speed = np.sqrt(EARTH_MU / r_orbit)
 
+    # ═══════════════════
+    #  COMPRESSION : β
+    # ═══════════════════
+    
+    # Masse moyenne pondérée par les densités (pour l'estimation de β)
+    neutral_species_data = {
+        "N2": (atm["N2"], 4.65e-26),
+        "N":  (atm["N"],  2.33e-26),
+        "O2": (atm["O2"], 5.31e-26),
+        "O":  (atm["O"],  2.67e-26),
+    }
+    
+    # Calcul de β par espèce (car v_th dépend de la masse)
+    betas = {}
+    for sp_name, (density, mass) in neutral_species_data.items():
+        if beta_override is not None:
+            betas[sp_name] = beta_override
+        else:
+            betas[sp_name] = compute_beta(
+                orbital_speed, T_wall_K, A_intake, OUTLET_AREA_M2,
+                eta_collection, mass
+            )
+    
+    # Pour l'argon injecté séparément : pas de compression atmosphérique
+    betas["Ar"] = 1.0
+    
+    # ══════════════════════════════════════
+    #  ÉTAT INITIAL : n_init = β × n_MSIS
+    # ══════════════════════════════════════
     initial_state_dict = {
         "e": electron_seed,
-        "Ar" : 0,
-        "Ar+" : 0,
-        "N2": atm["N2"],
-        "N": atm["N"],
+        "Ar": 0,
+        "Ar+": 0,
+        "N2": betas["N2"] * atm["N2"],   
+        "N":  betas["N"]  * atm["N"],
         "N2+": ion_seed,
         "N+": ion_seed,
         "O2+": ion_seed,
-        "O2": atm["O2"],
-        "O": atm["O"],
+        "O2": betas["O2"] * atm["O2"],     
+        "O":  betas["O"]  * atm["O"],
         "O+": ion_seed,
         "T_e": 1.0,
         "T_mono": atm["T_eV"],
         "T_diato": atm["T_eV"],
     }
 
-    # Compression des neutres
     initial_densities = []
     for sp in species.species:
-        base_density = initial_state_dict[sp.name]
-        if sp.charge == 0 and sp.name != "e":
-            initial_densities.append(tau_c * base_density)
-        else:
-            initial_densities.append(base_density)
+        initial_densities.append(initial_state_dict[sp.name])
+    
     initial_state = initial_densities + [
         initial_state_dict["T_e"],
         initial_state_dict["T_mono"],
         initial_state_dict["T_diato"],
     ]
-    
-    # Particle injection rate in 1/s:
-    # Ndot_i = eta_collection * n_i * u_orbit * A_intake
+
+    # ════════════
+    #  INJECTION
+    # ════════════
     intake_capture = eta_collection * orbital_speed * A_intake
     injection_rates = np.zeros(species.nb)
     injection_rates[species.get_specie_by_name("N2").index] = intake_capture * atm["N2"]
-    injection_rates[species.get_specie_by_name("N").index] = intake_capture * atm["N"]
+    injection_rates[species.get_specie_by_name("N").index]  = intake_capture * atm["N"]
     injection_rates[species.get_specie_by_name("O2").index] = intake_capture * atm["O2"]
-    injection_rates[species.get_specie_by_name("O").index] = intake_capture * atm["O"]
+    injection_rates[species.get_specie_by_name("O").index]  = intake_capture * atm["O"]
     injection_rates[species.get_specie_by_name("Ar").index] = argon_injection_rate
 
 

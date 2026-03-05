@@ -67,7 +67,7 @@ config_dict = {
     "N": 5,
     "R_coil": 2,
 }
-A_INTAKE_M2 = 1
+A_INTAKE_M2 = 0.5
 
 log_folder_path = Path(__file__).resolve().parent.parent.parent.parent.joinpath("outputs", "logs_for_thrust_by_altitude")
 os.makedirs(log_folder_path, exist_ok=True)
@@ -205,8 +205,8 @@ def run_case(argon_injection_rate: float, case_key: str, case_label: str) -> Non
 run_case(argon_injection_rate=1e18, case_key="with_argon", case_label="With Argon")
 run_case(argon_injection_rate=0.0, case_key="without_argon", case_label="Without Argon")
 
-with open(log_folder_path.joinpath("thrust_vs_orbit.json"), "w") as file:
-    json.dump(results, file, indent=2)
+#with open(log_folder_path.joinpath("thrust_vs_orbit.json"), "w") as file:
+#    json.dump(results, file, indent=2)
 
 plt.figure(figsize=(8, 5))
 angles = np.asarray(results["angles_rad"], dtype=float)

@@ -19,6 +19,12 @@ from msis_densities import (
     _space_weather_params,
     SPACE_WEATHER_PATH,
 )
+from Drag.drag_model import (
+    A_BODY_M2_DEFAULT,
+    CD_BODY_DEFAULT,
+    drag_total_fmf,
+    mass_density_from_number_densities,
+)
 
 # --- Orbital/drag constants ---
 date = datetime(2020, 1, 1, 12, 0, 0)
@@ -32,14 +38,9 @@ orbit_points = 90
 altitudes_km = np.arange(180.0, 221.0, 10.0)
 
 # drag constants
-CD = 2.2
-CROSS_SECTION_AREA_M2 = 1.0
-
-# species masses
-_m_N2 = 4.65e-26
-_m_O2 = 5.31e-26
-_m_O = 2.67e-26
-_m_N = 2.33e-26
+INTAKE_AREA_M2 = 1.0
+CD_BODY = CD_BODY_DEFAULT
+A_BODY_M2 = A_BODY_M2_DEFAULT
 
 # Earth constants
 _mu_earth = 3.986004418e14  # m^3/s^2
@@ -103,8 +104,19 @@ for alt in altitudes_km:
         n_O2 = dens[3] * 1e6
         n_O = dens[1] * 1e6
         n_N = dens[7] * 1e6
-        rho = n_N2 * _m_N2 + n_O2 * _m_O2 + n_O * _m_O + n_N * _m_N
-        drag = 0.5 * rho * orbital_speed ** 2 * CD * CROSS_SECTION_AREA_M2
+        rho = mass_density_from_number_densities(
+            n2_m3=n_N2,
+            o2_m3=n_O2,
+            o_m3=n_O,
+            n_m3=n_N,
+        )
+        drag = drag_total_fmf(
+            rho=rho,
+            speed_m_s=orbital_speed,
+            intake_area_m2=INTAKE_AREA_M2,
+            cd_body=CD_BODY,
+            a_body_m2=A_BODY_M2,
+        )
         drags.append(drag)
 
     mean_drag = float(np.mean(drags)) if drags else 0.0
