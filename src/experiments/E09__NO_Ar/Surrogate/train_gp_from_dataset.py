@@ -19,7 +19,6 @@ FEATURE_NAMES = [
     "log10_O2_m3",
     "log10_O_m3",
     "log10_N_m3",
-    "T_K",
     "log10_intake_area_m2",
 ]
 
@@ -54,7 +53,6 @@ def _to_arrays(samples: list[dict]) -> tuple[np.ndarray, np.ndarray]:
                 float(_safe_log10(np.array([float(s["O2_m3"])]))[0]),
                 float(_safe_log10(np.array([float(s["O_m3"])]))[0]),
                 float(_safe_log10(np.array([float(s["N_m3"])]))[0]),
-                float(s["T_K"]),
                 float(_safe_log10(np.array([float(s["intake_area_m2"])]))[0]),
             ]
         )
@@ -75,7 +73,7 @@ def main() -> None:
 
     kernel = (
         ConstantKernel(1.0, (1e-6, 1e6))
-        * Matern(length_scale=np.ones(xs.shape[1]), length_scale_bounds=(1e-3, 1e4), nu=1.5)
+        * Matern(length_scale=np.ones(xs.shape[1]), length_scale_bounds=(1e-3, 1e4), nu=2.5)
         + WhiteKernel(noise_level=1e-10, noise_level_bounds=(1e-12, 1e-4))
     )
     gp = GaussianProcessRegressor(
