@@ -81,7 +81,7 @@ lat = 0.0
 lon = 0.0
 inclination_deg = 51.6
 raan_deg = lon
-orbit_points = 90
+orbit_points = 40
 
 # altitudes to sweep (km) – only four for readability
 altitudes_km = np.array([180.0, 190.0, 200.0, 210.0])
