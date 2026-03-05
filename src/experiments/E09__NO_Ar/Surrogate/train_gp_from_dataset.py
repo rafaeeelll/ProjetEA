@@ -20,7 +20,9 @@ FEATURE_NAMES = [
     "log10_O_m3",
     "log10_N_m3",
     "log10_intake_area_m2",
+    "log10_argon_injection_rate_plus_eps",
 ]
+ARGON_EPS = 1e14
 
 
 def _safe_log10(x: np.ndarray, floor: float = 1e-30) -> np.ndarray:
@@ -54,6 +56,11 @@ def _to_arrays(samples: list[dict]) -> tuple[np.ndarray, np.ndarray]:
                 float(_safe_log10(np.array([float(s["O_m3"])]))[0]),
                 float(_safe_log10(np.array([float(s["N_m3"])]))[0]),
                 float(_safe_log10(np.array([float(s["intake_area_m2"])]))[0]),
+                float(
+                    _safe_log10(
+                        np.array([float(s.get("argon_injection_rate", 0.0)) + ARGON_EPS])
+                    )[0]
+                ),
             ]
         )
         y_vals.append(float(thrust))

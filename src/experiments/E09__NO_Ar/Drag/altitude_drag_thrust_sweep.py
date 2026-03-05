@@ -30,6 +30,13 @@ from msis_densities import (
     get_msis_neutral_atmosphere,
 )
 from reaction_set_N_et_O import get_species_and_reactions
+from Drag.drag_model import (
+    A_BODY_M2_DEFAULT,
+    CD_BODY_DEFAULT,
+    collection_efficiency,
+    drag_total_fmf,
+    mass_density_from_number_densities,
+)
 
 # --- Fixed point on orbit ---
 theta_fixed_rad = 0.0
@@ -51,7 +58,6 @@ POWER_RF_W = 1000.0
 ION_SEED = 1e10
 ELECTRON_SEED = 1e12
 A_INTAKE_M2 = 1.0
-ETA_COLLECTION = 0.4
 FAST_MODE = True
 T0 = 0.0
 TF = 1e-2
@@ -72,14 +78,8 @@ records = _parse_space_weather(SPACE_WEATHER_PATH)
 f107a_map = _compute_f107a(records)
 
 # Drag constants
-CD = 2.2
-CROSS_SECTION_AREA_M2 = 0.5
-
-# Species masses
-_m_N2 = 4.65e-26
-_m_O2 = 5.31e-26
-_m_O = 2.67e-26
-_m_N = 2.33e-26
+CD_BODY = CD_BODY_DEFAULT
+A_BODY_M2 = A_BODY_M2_DEFAULT
 
 # Earth
 _mu_earth = 3.986004418e14  # m^3/s^2
@@ -143,9 +143,20 @@ for altitude_km in altitudes_km:
     n_O2 = float(atm["O2"])
     n_O = float(atm["O"])
     n_N = float(atm["N"])
-
-    rho = n_N2 * _m_N2 + n_O2 * _m_O2 + n_O * _m_O + n_N * _m_N
-    drag = 0.5 * rho * orbital_speed ** 2 * CD * CROSS_SECTION_AREA_M2
+    eta_collection_eff = collection_efficiency(A_intake=A_INTAKE_M2)
+    rho = mass_density_from_number_densities(
+        n2_m3=n_N2,
+        o2_m3=n_O2,
+        o_m3=n_O,
+        n_m3=n_N,
+    )
+    drag = drag_total_fmf(
+        rho=rho,
+        speed_m_s=orbital_speed,
+        intake_area_m2=A_INTAKE_M2,
+        cd_body=CD_BODY,
+        a_body_m2=A_BODY_M2,
+    )
 
     chamber = Chamber(CHAMBER_CONFIG)
     species, initial_state, reactions_list, _ = get_species_and_reactions(
@@ -158,7 +169,7 @@ for altitude_km in altitudes_km:
         ion_seed=ION_SEED,
         electron_seed=ELECTRON_SEED,
         A_intake=A_INTAKE_M2,
-        eta_collection=ETA_COLLECTION,
+        eta_collection=eta_collection_eff,
         atm=atm,
     )
     electron_heating = ElectronHeatingConstantRFPower(species, POWER_RF_W, chamber)
@@ -196,6 +207,7 @@ for altitude_km in altitudes_km:
             "T_e_eV": float(final_state[species.nb]),
             "T_mono_eV": float(final_state[species.nb + 1]),
             "T_diato_eV": float(final_state[species.nb + 2]),
+            "eta_collection_eff": float(eta_collection_eff),
         }
     )
 
@@ -216,6 +228,9 @@ results = {
     "argon_rate": ARGON_INJECTION_RATE,
     "power_rf_W": POWER_RF_W,
     "A_intake_m2": A_INTAKE_M2,
+    "cd_body": CD_BODY,
+    "body_area_m2": A_BODY_M2,
+    "eta_collection_eff": float(collection_efficiency(A_intake=A_INTAKE_M2)),
     "source": "GlobalModel solve -> time_series -> final_state",
 }
 with out_dir.joinpath("drag_thrust_vs_altitude.json").open("w", encoding="utf-8") as fp:

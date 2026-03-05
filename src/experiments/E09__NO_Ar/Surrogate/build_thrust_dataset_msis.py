@@ -19,11 +19,14 @@ RANDOM_SEED = 42
 # Envelope used only to infer realistic density bounds
 ALTITUDE_BOUNDS_KM = (170.0, 240.0)
 AREA_BOUNDS_M2 = (1e-2, 0.8)
+ARGON_BOUNDS_RATE = (0.0, 1e18)
 INCLINATION_BOUNDS_DEG = (0.0, 98.0)
 RAAN_BOUNDS_DEG = (-180.0, 180.0)
 EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
 EARTH_OMEGA = 7.2921159e-5
+ARGON_ZERO_PROBABILITY = 0.3
+ARGON_MIN_LOG_NONZERO = 1e14
 
 
 if str(E09_DIR) not in sys.path:
@@ -92,6 +95,21 @@ def _lhs_unit(n: int, d: int, rng: np.random.Generator) -> np.ndarray:
     return u
 
 
+def _sample_argon_rate(u_scalar: float, rng: np.random.Generator) -> float:
+    low, high = ARGON_BOUNDS_RATE
+    low = float(low)
+    high = float(high)
+    if high <= 0.0:
+        return 0.0
+    if low <= 0.0 and rng.random() < ARGON_ZERO_PROBABILITY:
+        return 0.0
+
+    low_nonzero = max(low, ARGON_MIN_LOG_NONZERO)
+    log_low = np.log10(low_nonzero)
+    log_high = np.log10(high)
+    return float(10 ** (log_low + float(u_scalar) * (log_high - log_low)))
+
+
 def main() -> None:
     records = _parse_space_weather(SPACE_WEATHER_PATH)
     f107a_map = _compute_f107a(records)
@@ -99,8 +117,8 @@ def main() -> None:
 
     # Sample physically coherent points directly from MSIS along random orbit points.
     rng = np.random.default_rng(RANDOM_SEED)
-    # dims: altitude, inclination, RAAN, theta, logA
-    u = _lhs_unit(N_POINTS, 5, rng)
+    # dims: altitude, inclination, RAAN, theta, logA, argon
+    u = _lhs_unit(N_POINTS, 6, rng)
     log_a_min = np.log10(AREA_BOUNDS_M2[0])
     log_a_max = np.log10(AREA_BOUNDS_M2[1])
 
@@ -113,6 +131,7 @@ def main() -> None:
         raan_deg = RAAN_BOUNDS_DEG[0] + u[i, 2] * (RAAN_BOUNDS_DEG[1] - RAAN_BOUNDS_DEG[0])
         theta_rad = 2.0 * np.pi * u[i, 3]
         log_a = log_a_min + u[i, 4] * (log_a_max - log_a_min)
+        argon_rate = _sample_argon_rate(float(u[i, 5]), rng)
         dt, lat_deg, lon_deg, orbital_speed_m_s = _orbital_point(
             float(altitude_km),
             float(inclination_deg),
@@ -138,6 +157,7 @@ def main() -> None:
                 "theta_rad": float(theta_rad),
                 "lat_deg": float(lat_deg),
                 "lon_deg": float(lon_deg),
+                "argon_injection_rate": float(argon_rate),
                 "date": dt.isoformat(),
                 "f107": float(f107),
                 "f107a": float(f107a),
@@ -166,6 +186,7 @@ def main() -> None:
             "inclination_bounds_deg": list(INCLINATION_BOUNDS_DEG),
             "raan_bounds_deg": list(RAAN_BOUNDS_DEG),
             "area_bounds_m2": list(AREA_BOUNDS_M2),
+            "argon_injection_rate_bounds": list(ARGON_BOUNDS_RATE),
             "density_bounds_m3": {
                 "N2_m3": [float(np.min(n2_vals)), float(np.max(n2_vals))],
                 "O2_m3": [float(np.min(o2_vals)), float(np.max(o2_vals))],

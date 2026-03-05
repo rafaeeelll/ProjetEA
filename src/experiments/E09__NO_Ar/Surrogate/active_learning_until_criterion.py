@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 from scipy.optimize import differential_evolution
 
-from compute_thrust_for_dataset import ETA_COLLECTION, _thrust_for_sample
+from compute_thrust_for_dataset import _thrust_for_sample
 
 E09_DIR = Path(__file__).resolve().parents[1]
 if str(E09_DIR) not in sys.path:
@@ -18,6 +18,7 @@ if str(E09_DIR) not in sys.path:
 from Drag.drag_model import (
     A_BODY_M2_DEFAULT,
     CD_BODY_DEFAULT,
+    collection_efficiency,
     drag_total_from_sample,
     mass_density_from_sample,
 )
@@ -32,6 +33,9 @@ ALTITUDE_BOUNDS_KM = (150.0, 240.0)
 FIXED_INCLINATION_DEG = 20.0
 FIXED_RAAN_DEG = -13.0
 LOG10_AREA_BOUNDS = (np.log10(1e-2), np.log10(1.0))
+ARGON_BOUNDS_RATE = (0.0, 1e18)
+ARGON_EPS = 1e14
+M_AR = 6.63e-26
 
 EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
@@ -56,6 +60,7 @@ def _sample_to_feature(s: dict) -> np.ndarray:
             float(_safe_log10(np.array([float(s["O_m3"])]))[0]),
             float(_safe_log10(np.array([float(s["N_m3"])]))[0]),
             float(_safe_log10(np.array([float(s["intake_area_m2"])]))[0]),
+            float(_safe_log10(np.array([float(s.get("argon_injection_rate", 0.0)) + ARGON_EPS]))[0]),
         ],
         dtype=float,
     )
@@ -154,12 +159,14 @@ def _drag_newton(
 
 
 def _mass_flow_kg_s(sample: dict) -> float:
-    eta_collection = float(sample.get("eta_collection", ETA_COLLECTION))
+    eta_collection = collection_efficiency(float(sample["intake_area_m2"]))
     collection_rate = float(sample.get("collection_rate", 1.0))
     u = float(sample["orbital_speed_m_s"])
     a = float(sample["intake_area_m2"])
     capture = max(eta_collection, 0.0) * max(collection_rate, 0.0) * max(u, 0.0) * max(a, 0.0)
-    return capture * mass_density_from_sample(sample)
+    mdot_air = capture * mass_density_from_sample(sample)
+    mdot_argon = max(float(sample.get("argon_injection_rate", 0.0)), 0.0) * M_AR
+    return mdot_air + mdot_argon
 
 
 def _isp_s(thrust_n: float, mdot_kg_s: float) -> float:
@@ -184,6 +191,8 @@ def _design_to_orbit_samples(
     inclination_deg = float(fixed_inclination_deg)
     raan_deg = float(fixed_raan_deg)
     area_m2 = float(10 ** float(design[1]))
+    argon_rate = float(max(10 ** float(design[2]) - ARGON_EPS, 0.0))
+    eta_eff = float(collection_efficiency(area_m2))
 
     thetas = np.linspace(0.0, 2.0 * np.pi, int(points_per_orbit), endpoint=False)
     samples: list[dict] = []
@@ -206,6 +215,7 @@ def _design_to_orbit_samples(
                 "N_m3": float(dens[7]) * 1e6,
                 "T_K": float(temp[1]),
                 "intake_area_m2": area_m2,
+                "argon_injection_rate": argon_rate,
                 "altitude_km": altitude_km,
                 "orbital_speed_m_s": orbital_speed,
                 "inclination_deg": inclination_deg,
@@ -217,7 +227,7 @@ def _design_to_orbit_samples(
                 "f107": float(f107),
                 "f107a": float(f107a),
                 "ap": float(ap),
-                "eta_collection": float(ETA_COLLECTION),
+                "eta_collection": eta_eff,
                 "total_thrust_N": None,
                 "needs_simulation": True,
             }
@@ -290,10 +300,14 @@ def _optimize_design(
     f107a_map: dict,
     points_per_orbit: int,
     maxiter: int,
+    argon_bounds_rate: tuple[float, float],
 ) -> tuple[np.ndarray, dict]:
+    log_argon_low = float(np.log10(max(float(argon_bounds_rate[0]), 0.0) + ARGON_EPS))
+    log_argon_high = float(np.log10(max(float(argon_bounds_rate[1]), 0.0) + ARGON_EPS))
     bounds = [
         (ALTITUDE_BOUNDS_KM[0], ALTITUDE_BOUNDS_KM[1]),
         (LOG10_AREA_BOUNDS[0], LOG10_AREA_BOUNDS[1]),
+        (log_argon_low, log_argon_high),
     ]
 
     def objective(z: np.ndarray) -> float:
@@ -417,6 +431,8 @@ def main() -> None:
     )
     parser.add_argument("--orbit-points", type=int, default=36, help="Points used on each orbit for objective evaluation.")
     parser.add_argument("--design-maxiter", type=int, default=20, help="Inner differential-evolution maxiter.")
+    parser.add_argument("--argon-min-rate", type=float, default=ARGON_BOUNDS_RATE[0], help="Minimum argon injection rate for optimization.")
+    parser.add_argument("--argon-max-rate", type=float, default=ARGON_BOUNDS_RATE[1], help="Maximum argon injection rate for optimization.")
     parser.add_argument("--fixed-inclination-deg", type=float, default=FIXED_INCLINATION_DEG, help="Fixed orbital inclination.")
     parser.add_argument("--fixed-raan-deg", type=float, default=FIXED_RAAN_DEG, help="Fixed RAAN.")
     parser.add_argument("--fast", action="store_true", help="Use fast mode for true 0D solves.")
@@ -427,6 +443,10 @@ def main() -> None:
 
     records = _parse_space_weather(SPACE_WEATHER_PATH)
     f107a_map = _compute_f107a(records)
+    argon_bounds_rate = (
+        min(float(args.argon_min_rate), float(args.argon_max_rate)),
+        max(float(args.argon_min_rate), float(args.argon_max_rate)),
+    )
 
     best_j_lcb = -np.inf
     best_design = None
@@ -454,6 +474,7 @@ def main() -> None:
             f107a_map=f107a_map,
             points_per_orbit=int(args.orbit_points),
             maxiter=int(args.design_maxiter),
+            argon_bounds_rate=argon_bounds_rate,
         )
 
         idx_b = int(stats["idx_bottleneck"])
@@ -463,6 +484,7 @@ def main() -> None:
         bottleneck["design_inclination_deg"] = float(args.fixed_inclination_deg)
         bottleneck["design_raan_deg"] = float(args.fixed_raan_deg)
         bottleneck["design_intake_area_m2"] = float(10 ** float(design_star[1]))
+        bottleneck["design_argon_injection_rate"] = float(max(10 ** float(design_star[2]) - ARGON_EPS, 0.0))
 
         try:
             true_thrust = float(_thrust_for_sample(bottleneck, fast_mode=bool(args.fast)))
@@ -509,6 +531,7 @@ def main() -> None:
             "design_inclination_deg": float(args.fixed_inclination_deg),
             "design_raan_deg": float(args.fixed_raan_deg),
             "design_intake_area_m2": float(10 ** float(design_star[1])),
+            "design_argon_injection_rate": float(max(10 ** float(design_star[2]) - ARGON_EPS, 0.0)),
             "j_mu_N": float(stats["j_mu_N"]),
             "j_lcb_N": j_lcb,
             "sigma_bottleneck_N": float(stats["sigma_bottleneck_N"]),
@@ -554,6 +577,7 @@ def main() -> None:
             "inclination_deg": float(args.fixed_inclination_deg),
             "raan_deg": float(args.fixed_raan_deg),
             "intake_area_m2": float(10 ** float(best_design[1])),
+            "argon_injection_rate": float(max(10 ** float(best_design[2]) - ARGON_EPS, 0.0)),
         }
         final_summary.update(verify)
         print(
@@ -579,7 +603,8 @@ def main() -> None:
                     "fixed_raan_deg": float(args.fixed_raan_deg),
                     "altitude_bounds_km": [float(ALTITUDE_BOUNDS_KM[0]), float(ALTITUDE_BOUNDS_KM[1])],
                     "intake_area_bounds_m2": [float(10 ** LOG10_AREA_BOUNDS[0]), float(10 ** LOG10_AREA_BOUNDS[1])],
-                    "eta_collection": float(ETA_COLLECTION),
+                    "argon_bounds_rate": [float(argon_bounds_rate[0]), float(argon_bounds_rate[1])],
+                    "argon_log_eps": float(ARGON_EPS),
                 },
                 "iterations": log_rows,
                 "final_summary": final_summary,
