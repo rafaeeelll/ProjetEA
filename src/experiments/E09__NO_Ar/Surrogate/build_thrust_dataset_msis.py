@@ -17,16 +17,16 @@ N_POINTS = 300
 RANDOM_SEED = 42
 
 # Envelope used only to infer realistic density bounds
-ALTITUDE_BOUNDS_KM = (170.0, 240.0)
-AREA_BOUNDS_M2 = (1e-2, 0.8)
+ALTITUDE_BOUNDS_KM = (160.0, 220.0)
+AREA_BOUNDS_M2 = (5e-2, 0.8)
 ARGON_BOUNDS_RATE = (0.0, 1e18)
 INCLINATION_BOUNDS_DEG = (0.0, 98.0)
 RAAN_BOUNDS_DEG = (-180.0, 180.0)
 EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
 EARTH_OMEGA = 7.2921159e-5
-ARGON_ZERO_PROBABILITY = 0.3
-ARGON_MIN_LOG_NONZERO = 1e14
+ARGON_ZERO_PROBABILITY = 1
+ARGON_MIN_LOG_NONZERO = 1e2
 
 
 if str(E09_DIR) not in sys.path:
@@ -74,7 +74,7 @@ def _orbital_point(
 
 
 def _msis_state(altitude_km: float, dt: datetime, lat_deg: float, lon_deg: float, f107: float, f107a: float, ap: float):
-    from nrlmsise00 import msise_model  # type: ignore
+    from nrlmsise00 import msise_model
 
     dens, temp = msise_model(dt, altitude_km, lat_deg, lon_deg, f107a, f107, ap)
     dens = np.array(dens, dtype=float)

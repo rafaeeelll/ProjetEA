@@ -1,5 +1,3 @@
-# plot_ignition_map.py
-
 from __future__ import annotations
 
 import argparse
@@ -11,10 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
 
-from Surrogate.compute_thrust_for_dataset import ETA_COLLECTION, _thrust_for_sample
+from Surrogate.compute_thrust_for_dataset import _thrust_for_sample
 from Drag.drag_model import (
     A_BODY_M2_DEFAULT,
     CD_BODY_DEFAULT,
+    collection_efficiency,
     drag_total_fmf,
     mass_density_from_number_densities,
 )
@@ -26,7 +25,7 @@ EARTH_MU = 3.986004418e14
 
 DATE_REF = datetime(2020, 1, 1, 12, 0, 0)
 
-# ── Drag (même modèle que active_learning_orbit) ──
+# ── Drag ──
 CD_BODY = CD_BODY_DEFAULT
 A_BODY_M2 = A_BODY_M2_DEFAULT
 
@@ -40,7 +39,7 @@ def scan_ignition_map(
     lon: float = 0.0,
 ) -> dict:
     """
-    Scan complet 2D : pour chaque (altitude, area), calcule thrust, drag, Isp.
+    Scan 2D : pour chaque (altitude, area intake), calcule thrust, drag, Isp.
     """
     from msis_densities import (
         _compute_f107a,
@@ -99,7 +98,7 @@ def scan_ignition_map(
                 "intake_area_m2": float(area),
                 "altitude_km": float(alt),
                 "orbital_speed_m_s": float(u_orb),
-                "eta_collection": float(ETA_COLLECTION),
+                "eta_collection": float(collection_efficiency(float(area))),
                 "f107": float(f107),
                 "f107a": float(f107a),
                 "ap": float(ap),
@@ -119,7 +118,7 @@ def scan_ignition_map(
                 )
 
                 # Débit massique capté
-                capture = ETA_COLLECTION * u_orb * area
+                capture = collection_efficiency(float(area)) * u_orb * area
                 mdot = capture * rho
                 isp = thrust / (mdot * 9.81) if mdot > 0 else 0.0
 

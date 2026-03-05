@@ -11,10 +11,10 @@ M_N = 2.33e-26
 # Shared drag defaults
 ETA_COLLECTION_DEFAULT = 0.5
 CD_BODY_DEFAULT = 2.2
-A_BODY_M2_DEFAULT = 0.01
+A_BODY_M2_DEFAULT = 0.03
 R_CHAMBER_DEFAULT_M = 6e-2
 ETA_C_MAX = ETA_COLLECTION_DEFAULT
-ETA_C_ALPHA = 0.3
+ETA_C_ALPHA = 0.1
 
 
 def collection_efficiency(A_intake: float, A_chamber: float | None = None) -> float:

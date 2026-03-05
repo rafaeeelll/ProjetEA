@@ -13,14 +13,14 @@ if str(E09_DIR) not in sys.path:
     sys.path.append(str(E09_DIR))
 
 try:
-    import global_model_package  # noqa: F401
+    import global_model_package 
 except ModuleNotFoundError:
     global_model_package_path = Path(__file__).resolve().parents[3].joinpath("global_model_package")
     sys.path.append(str(global_model_package_path))
 
-from global_model_package.chamber_caracteristics import Chamber  # type: ignore
-from global_model_package.model import GlobalModel  # type: ignore
-from global_model_package.reactions import ElectronHeatingConstantRFPower  # type: ignore
+from global_model_package.chamber_caracteristics import Chamber
+from global_model_package.model import GlobalModel
+from global_model_package.reactions import ElectronHeatingConstantRFPower
 
 from msis_densities import (
     _compute_f107a,
@@ -46,14 +46,13 @@ date = datetime(2020, 1, 1, 12, 0, 0)
 inclination_deg = 51.6
 raan_deg = 0.0
 
-# Sweep altitude from 150 km to 250 km
+# Sweep altitude
 ALTITUDE_SWEEP_POINTS = int(os.environ.get("ALTITUDE_SWEEP_POINTS", "101"))
 altitudes_km = np.linspace(150.0, 250.0, ALTITUDE_SWEEP_POINTS)
 
-# No argon for now (kept fixed)
 ARGON_INJECTION_RATE = 0.0
 
-# Global model settings (same spirit as time_series.py)
+# Global model settings
 POWER_RF_W = 1000.0
 ION_SEED = 1e10
 ELECTRON_SEED = 1e12
@@ -212,7 +211,7 @@ for altitude_km in altitudes_km:
     )
 
 
-# --- Output folder dedicated to drag (inside existing outputs/) ---
+# --- Output folder dedicated to drag ----
 out_dir = Path(__file__).resolve().parents[4].joinpath("outputs", "drag")
 os.makedirs(out_dir, exist_ok=True)
 

@@ -13,10 +13,9 @@ from scipy.constants import e, k as k_B, pi
 E09_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DATASET_PATH = PROJECT_ROOT.joinpath("outputs", "thrust_dataset", "thrust_dataset_msis.json")
-ETA_COLLECTION = 0.4  # compatibility constant for scripts that still import it
 ARGON_DEFAULT_RATE = 0.0
 
-# Keep chamber geometry fixed for surrogate consistency.
+# Chamber geometry
 CHAMBER_CONFIG = {
     "R": 6e-2,
     "L": 10e-2,
@@ -32,7 +31,7 @@ if str(E09_DIR) not in sys.path:
     sys.path.append(str(E09_DIR))
 
 try:
-    import global_model_package  # noqa: F401
+    import global_model_package
 except ModuleNotFoundError:
     global_model_package_path = Path(__file__).resolve().parents[2].joinpath("global_model_package")
     sys.path.append(str(global_model_package_path))
