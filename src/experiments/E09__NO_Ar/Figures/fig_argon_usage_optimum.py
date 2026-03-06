@@ -92,9 +92,11 @@ def _orbit_stats(
     isp_arr = np.array([isp_s(t, m) for t, m in zip(thrusts_arr, mdots_arr)], dtype=float)
 
     argon_mdot = float(argon_rate * M_AR)
+    mean_total_mdot = float(np.mean(mdots_arr))
     return {
         "argon_rate": float(argon_rate),
         "argon_mdot_kg_s": argon_mdot,
+        "mean_total_mdot_kg_s": mean_total_mdot,
         "min_margin_N": float(np.min(margins_arr)),
         "mean_margin_N": float(np.mean(margins_arr)),
         "min_thrust_N": float(np.min(thrusts_arr)),
@@ -150,9 +152,10 @@ def main() -> None:
     baseline_margin = rows[0]["min_margin_N"]
     for row in rows:
         argon_mdot = float(row["argon_mdot_kg_s"])
+        total_mdot = float(row["mean_total_mdot_kg_s"])
         delta_margin = float(row["min_margin_N"] - baseline_margin)
         row["delta_min_margin_N"] = delta_margin
-        row["gain_per_argon_kg_s"] = float(delta_margin / argon_mdot) if argon_mdot > 0.0 else float("nan")
+        row["gain_per_argon_kg_s"] = float(delta_margin / total_mdot) if total_mdot > 0.0 else float("nan")
         row["tank_lifetime_days"] = {
             label: _tank_lifetime_days(mass, argon_mdot)
             for label, mass in zip(TANK_LABELS, TANK_MASSES_KG)
@@ -212,9 +215,9 @@ def main() -> None:
     ax = axes[1, 1]
     if np.isfinite(eff_arr[1:]).any():
         ax.semilogx(rates_arr[1:], eff_arr[1:], marker="o")
-    ax.set_title("Margin gain per argon flow")
+    ax.set_title("Margin gain per total propellant flow")
     ax.set_xlabel("Argon injection rate [part/s]")
-    ax.set_ylabel("Delta min(T-D) / m_dot_Ar [N s / kg]")
+    ax.set_ylabel("Delta min(T-D) / m_dot_total [N s / kg]")
     ax.grid(True, alpha=0.3)
 
     for axis in axes.flat:
