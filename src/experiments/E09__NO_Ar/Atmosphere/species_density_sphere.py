@@ -8,7 +8,7 @@ Fonctions:
 - vous pouvez tourner, zoomer avec la souris
 
 Usage exemple:
-  python species_density_sphere.py --hemisphere north --out figures/species_density_sphere.html --show
+    python species_density_sphere.py --hemisphere north --out figures/E09/atmosphere/species_density_sphere.html --show
 """
 from __future__ import annotations
 
@@ -179,7 +179,7 @@ def parse_args():
     p.add_argument('--n-lon', type=int, default=96, help='Nombre de points en longitude (défaut 96)')
     p.add_argument('--hemisphere', type=str, choices=['north', 'south', 'east', 'west', 'full'], default='north', help='Région à tracer')
     p.add_argument('--cmap', type=str, default='Plasma', help='Colormap Plotly (ex: Plasma, Viridis, RdBu, Jet)')
-    p.add_argument('--out', type=str, default=os.path.join('figures', 'species_density_sphere.html'), help='Fichier HTML interactif (défaut .html)')
+    p.add_argument('--out', type=str, default=os.path.join('figures', 'E09', 'atmosphere', 'species_density_sphere.html'), help='Fichier HTML interactif (défaut .html)')
     p.add_argument('--show', action='store_true', help='Ouvrir dans le navigateur après génération')
     return p.parse_args()
 

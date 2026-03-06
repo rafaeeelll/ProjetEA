@@ -275,7 +275,7 @@ def create_figure():
     )
     
     # Save figure
-    output_file = 'figures/atmosphere_sphere_interactive.html'
+    output_file = 'figures/E09/atmosphere/atmosphere_sphere_interactive.html'
     fig.write_html(output_file)
     print(f"Figure interactive sauvegardée: {output_file}")
 

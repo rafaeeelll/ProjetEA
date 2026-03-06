@@ -1,0 +1,48 @@
+{
+  "date": "2020-01-01T12:00:00",
+  "lat_deg": 0.0,
+  "lon_deg": 0.0,
+  "alt_min_km": 100.0,
+  "alt_max_km": 500.0,
+  "step_km": 2.0,
+  "f107": 71.8,
+  "f107a": 69.73333333333333,
+  "ap": 2.0,
+  "stats": {
+    "N": {
+      "min_value_m3": 119286523342.28102,
+      "min_altitude_km": 500.0,
+      "mean_value_m3": 7551158144726.98,
+      "delta_min_minus_mean_m3": -7431871621384.699,
+      "delta_min_minus_mean_percent": -98.42028837092255
+    },
+    "N2": {
+      "min_value_m3": 28338215774.56822,
+      "min_altitude_km": 500.0,
+      "mean_value_m3": 1.9813336000168298e+17,
+      "delta_min_minus_mean_m3": -1.981333316634672e+17,
+      "delta_min_minus_mean_percent": -99.9999856974031
+    },
+    "O": {
+      "min_value_m3": 4594878994285.234,
+      "min_altitude_km": 500.0,
+      "mean_value_m3": 1.7497364803010372e+16,
+      "delta_min_minus_mean_m3": -1.7492769924016086e+16,
+      "delta_min_minus_mean_percent": -99.97373959424168
+    },
+    "O2": {
+      "min_value_m3": 384539532.19954735,
+      "min_altitude_km": 500.0,
+      "mean_value_m3": 4.1620739557330904e+16,
+      "delta_min_minus_mean_m3": -4.162073917279137e+16,
+      "delta_min_minus_mean_percent": -99.99999907608672
+    },
+    "Total": {
+      "min_value_m3": 4742888272934.283,
+      "min_altitude_km": 500.0,
+      "mean_value_m3": 2.57259015520169e+17,
+      "delta_min_minus_mean_m3": -2.5725427263189606e+17,
+      "delta_min_minus_mean_percent": -99.99815637626408
+    }
+  }
+}

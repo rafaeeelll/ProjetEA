@@ -30,7 +30,7 @@ from scipy.stats import pearsonr, spearmanr
 # Configuration des chemins
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DATASET_PATH = PROJECT_ROOT.joinpath("outputs", "thrust_dataset", "thrust_dataset_msis.json")
-OUTPUT_DIR = PROJECT_ROOT.joinpath("outputs", "dimension_analysis")
+OUTPUT_DIR = PROJECT_ROOT.joinpath("figures", "E09", "dimension_analysis")
 
 # Configuration graphique
 sns.set_style("whitegrid")

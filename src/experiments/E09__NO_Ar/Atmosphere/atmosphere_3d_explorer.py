@@ -6,7 +6,7 @@
 - Sélecteurs interactifs: espèce, année, latitude, longitude
 
 Usage:
-  python atmosphere_3d_explorer.py --out figures/atmosphere_explorer.html --show
+    python atmosphere_3d_explorer.py --out figures/E09/atmosphere/atmosphere_explorer.html --show
 """
 from __future__ import annotations
 
@@ -172,7 +172,7 @@ def create_isodensity_shells(lat_deg, lon_deg, species, year, alt_ref=200,
 
 def parse_args():
     p = argparse.ArgumentParser(description='Explorateur 3D interactif de l\'atmosphère avec sélecteurs')
-    p.add_argument('--out', type=str, default=os.path.join('figures', 'atmosphere_explorer.html'), help='Fichier HTML (défaut .html)')
+    p.add_argument('--out', type=str, default=os.path.join('figures', 'E09', 'atmosphere', 'atmosphere_explorer.html'), help='Fichier HTML (défaut .html)')
     p.add_argument('--show', action='store_true', help='Ouvrir dans le navigateur')
     return p.parse_args()
 

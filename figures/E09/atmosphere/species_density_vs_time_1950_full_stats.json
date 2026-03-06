@@ -1,0 +1,68 @@
+{
+  "start": "1950-01-01T00:00:00",
+  "end": "2026-01-27T00:00:00",
+  "step_days": 30.0,
+  "lat_deg": 0.0,
+  "lon_deg": 0.0,
+  "altitude_km": 200.0,
+  "despike": {
+    "method": "local_median_ratio",
+    "low_ratio": 1e-06,
+    "high_ratio": 1000000.0,
+    "half_window": 3,
+    "flagged_timestamps_by_species": {
+      "N": [
+        "2005-09-09T00:00:00"
+      ],
+      "N2": [
+        "2005-09-09T00:00:00"
+      ],
+      "O": [
+        "2005-09-09T00:00:00"
+      ],
+      "O2": [
+        "2005-09-09T00:00:00"
+      ],
+      "Total": [
+        "2005-09-09T00:00:00"
+      ]
+    }
+  },
+  "stats": {
+    "N": {
+      "min_value_m3": 9146982044772.795,
+      "min_time_iso": "1954-01-10T00:00:00",
+      "mean_value_m3": 28326202328388.758,
+      "delta_min_minus_mean_m3": -19179220283615.96,
+      "delta_min_minus_mean_percent": -67.70840672981561
+    },
+    "N2": {
+      "min_value_m3": 1095866595483252.0,
+      "min_time_iso": "1954-02-09T00:00:00",
+      "mean_value_m3": 2599565706410171.5,
+      "delta_min_minus_mean_m3": -1503699110926919.5,
+      "delta_min_minus_mean_percent": -57.84424326028783
+    },
+    "O": {
+      "min_value_m3": 2090433069232966.0,
+      "min_time_iso": "2008-07-25T00:00:00",
+      "mean_value_m3": 4036334277411334.0,
+      "delta_min_minus_mean_m3": -1945901208178368.0,
+      "delta_min_minus_mean_percent": -48.20961482472541
+    },
+    "O2": {
+      "min_value_m3": 36472175432913.734,
+      "min_time_iso": "1956-12-25T00:00:00",
+      "mean_value_m3": 106996467293913.31,
+      "delta_min_minus_mean_m3": -70524291860999.58,
+      "delta_min_minus_mean_percent": -65.91272931214944
+    },
+    "Total": {
+      "min_value_m3": 3346380251432736.0,
+      "min_time_iso": "1954-01-10T00:00:00",
+      "mean_value_m3": 6771225967360309.0,
+      "delta_min_minus_mean_m3": -3424845715927573.0,
+      "delta_min_minus_mean_percent": -50.57940367721494
+    }
+  }
+}

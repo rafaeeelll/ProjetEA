@@ -8,7 +8,7 @@ Le rayon de chaque coquille varie selon la densité locale:
 La densité moyenne est à l'altitude donnée.
 
 Usage exemple:
-  python species_density_shells.py --altitude 200 --hemisphere north --out figures/species_shells.html --show
+    python species_density_shells.py --altitude 200 --hemisphere north --out figures/E09/atmosphere/species_shells.html --show
 """
 from __future__ import annotations
 
@@ -191,7 +191,7 @@ def parse_args():
     p.add_argument('--n-lon', type=int, default=96, help='Nombre de points en longitude (défaut 96)')
     p.add_argument('--hemisphere', type=str, choices=['north', 'south', 'east', 'west', 'full'], default='north', help='Région à tracer')
     p.add_argument('--modulation', type=float, default=50.0, help='Facteur de modulation du rayon (défaut 50)')
-    p.add_argument('--out', type=str, default=os.path.join('figures', 'species_shells.html'), help='Fichier HTML interactif')
+    p.add_argument('--out', type=str, default=os.path.join('figures', 'E09', 'atmosphere', 'species_shells.html'), help='Fichier HTML interactif')
     p.add_argument('--show', action='store_true', help='Ouvrir dans le navigateur')
     return p.parse_args()
 

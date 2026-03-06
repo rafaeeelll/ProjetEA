@@ -94,7 +94,7 @@ thrust_minus_drag_N = []
 thrust_time_series_last_N = []
 final_state_summary = []
 
-sim_log_dir = Path(__file__).resolve().parents[4].joinpath("outputs", "drag", "simulation_logs")
+sim_log_dir = Path(__file__).resolve().parents[4].joinpath("figures", "E09", "drag", "simulation_logs")
 os.makedirs(sim_log_dir, exist_ok=True)
 
 for altitude_km in altitudes_km:
@@ -212,7 +212,7 @@ for altitude_km in altitudes_km:
 
 
 # --- Output folder dedicated to drag ----
-out_dir = Path(__file__).resolve().parents[4].joinpath("outputs", "drag")
+out_dir = Path(__file__).resolve().parents[4].joinpath("figures", "E09", "drag")
 os.makedirs(out_dir, exist_ok=True)
 
 # Save raw data
