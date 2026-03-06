@@ -23,7 +23,6 @@ def _feature(sample: dict) -> np.ndarray:
             _safe_log10(sample["O_m3"]),
             _safe_log10(sample["N_m3"]),
             _safe_log10(sample["intake_area_m2"]),
-            _safe_log10(float(sample.get("argon_injection_rate", 0.0)) + 1e14),
         ],
         dtype=float,
     )

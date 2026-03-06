@@ -24,7 +24,8 @@ DEFAULT_MSIS_LON = 0.0
 DEFAULT_MSIS_F107 = None
 DEFAULT_MSIS_F107A = None
 DEFAULT_MSIS_AP = None
-OUTLET_AREA_M2 = 0.01
+# Outlet area aligned with chamber cross-section: pi * R_chamber^2 with R_chamber = 0.06 m.
+OUTLET_AREA_M2 = np.pi * (6e-2)**2
 EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
 
@@ -65,7 +66,7 @@ def compute_beta(u_orbital, T_wall_K, A_intake, A_outlet, eta_c, m_species):
 def get_species_and_reactions(
     chamber,                   #caractéristiques de la chambre
     altitude,                  #altitude en km pour récupérer les densités MSIS
-    argon_injection_rate,      #taux d'injection d'argon en moles/s
+    argon_injection_rate,      #taux d'injection d'argon en particules/s
     lat=DEFAULT_MSIS_LAT,      #latitude pour les densités MSIS
     lon=DEFAULT_MSIS_LON,      #longitude pour les densités MSIS
     date=DEFAULT_MSIS_DATE,    #date pour les densités MSIS
@@ -131,10 +132,16 @@ def get_species_and_reactions(
     # ══════════════════════════════════════
     #  ÉTAT INITIAL : n_init = β × n_MSIS
     # ══════════════════════════════════════
+    # Small Ar / Ar+ seeds avoid a discontinuous zero-density start when Ar injection
+    # is enabled. Without this, LSODA can fail at t=0 although the physical setup is
+    # otherwise well posed.
+    argon_seed = max(float(ion_seed), 1e8) if argon_injection_rate > 0 else 0.0
+    argon_ion_seed = float(ion_seed) if argon_injection_rate > 0 else 0.0
+
     initial_state_dict = {
         "e": electron_seed,
-        "Ar": 0,
-        "Ar+": 0,
+        "Ar": argon_seed,
+        "Ar+": argon_ion_seed,
         "N2": betas["N2"] * atm["N2"],   
         "N":  betas["N"]  * atm["N"],
         "N2+": ion_seed,

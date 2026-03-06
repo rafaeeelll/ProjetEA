@@ -282,6 +282,12 @@ def solve_plasma_sample(
         fast=fast_mode,
     )
     sol = model.solve(t0, tf, initial_state)
+    if not getattr(sol, "success", False):
+        raise RuntimeError(
+            f"Plasma solve failed for {simulation_name}: "
+            f"status={getattr(sol, 'status', None)} "
+            f"message={getattr(sol, 'message', 'unknown')}"
+        )
     states = np.asarray(sol.y, dtype=float).T
     thrust_series = np.array([float(model.total_thrust(state)) for state in states], dtype=float)
     thrust_final = float(thrust_series[-1])
@@ -334,4 +340,3 @@ def save_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
-

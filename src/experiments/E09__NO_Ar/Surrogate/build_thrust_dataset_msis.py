@@ -13,20 +13,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 OUTPUT_PATH = PROJECT_ROOT.joinpath("outputs", "thrust_dataset", "thrust_dataset_msis.json")
 
 DATE = datetime(2020, 1, 1, 12, 0, 0)
-N_POINTS = 300
+N_POINTS = 200
 RANDOM_SEED = 42
 
-# Envelope used only to infer realistic density bounds
+# Global envelope
 ALTITUDE_BOUNDS_KM = (160.0, 220.0)
 AREA_BOUNDS_M2 = (5e-2, 0.8)
-ARGON_BOUNDS_RATE = (0.0, 1e18)
+# Focused envelope around the expected feasible/optimal region
+ALTITUDE_FOCUS_BOUNDS_KM = (170.0, 190.0)
+AREA_FOCUS_BOUNDS_M2 = (0.12, 0.32)
+FOCUS_FRACTION = 0.8
 INCLINATION_BOUNDS_DEG = (0.0, 98.0)
 RAAN_BOUNDS_DEG = (-180.0, 180.0)
 EARTH_RADIUS_M = 6371e3
 EARTH_MU = 3.986004418e14
 EARTH_OMEGA = 7.2921159e-5
-ARGON_ZERO_PROBABILITY = 1
-ARGON_MIN_LOG_NONZERO = 1e2
 
 
 if str(E09_DIR) not in sys.path:
@@ -95,18 +96,13 @@ def _lhs_unit(n: int, d: int, rng: np.random.Generator) -> np.ndarray:
     return u
 
 
-def _sample_argon_rate(u_scalar: float, rng: np.random.Generator) -> float:
-    low, high = ARGON_BOUNDS_RATE
-    low = float(low)
-    high = float(high)
-    if high <= 0.0:
-        return 0.0
-    if low <= 0.0 and rng.random() < ARGON_ZERO_PROBABILITY:
-        return 0.0
+def _interp_bounds(u_scalar: float, bounds: tuple[float, float]) -> float:
+    return float(bounds[0] + float(u_scalar) * (bounds[1] - bounds[0]))
 
-    low_nonzero = max(low, ARGON_MIN_LOG_NONZERO)
-    log_low = np.log10(low_nonzero)
-    log_high = np.log10(high)
+
+def _interp_log_bounds(u_scalar: float, bounds: tuple[float, float]) -> float:
+    log_low = np.log10(bounds[0])
+    log_high = np.log10(bounds[1])
     return float(10 ** (log_low + float(u_scalar) * (log_high - log_low)))
 
 
@@ -115,23 +111,21 @@ def main() -> None:
     f107a_map = _compute_f107a(records)
     f1070, f107a0, ap0 = _space_weather_params(DATE, records, f107a_map)
 
-    # Sample physically coherent points directly from MSIS along random orbit points.
     rng = np.random.default_rng(RANDOM_SEED)
-    # dims: altitude, inclination, RAAN, theta, logA, argon
-    u = _lhs_unit(N_POINTS, 6, rng)
-    log_a_min = np.log10(AREA_BOUNDS_M2[0])
-    log_a_max = np.log10(AREA_BOUNDS_M2[1])
+    u = _lhs_unit(N_POINTS, 5, rng)
+    n_focus = int(round(FOCUS_FRACTION * N_POINTS))
 
     samples = []
     for i in range(N_POINTS):
-        altitude_km = ALTITUDE_BOUNDS_KM[0] + u[i, 0] * (ALTITUDE_BOUNDS_KM[1] - ALTITUDE_BOUNDS_KM[0])
-        inclination_deg = INCLINATION_BOUNDS_DEG[0] + u[i, 1] * (
-            INCLINATION_BOUNDS_DEG[1] - INCLINATION_BOUNDS_DEG[0]
-        )
-        raan_deg = RAAN_BOUNDS_DEG[0] + u[i, 2] * (RAAN_BOUNDS_DEG[1] - RAAN_BOUNDS_DEG[0])
+        in_focus = i < n_focus
+        altitude_bounds = ALTITUDE_FOCUS_BOUNDS_KM if in_focus else ALTITUDE_BOUNDS_KM
+        area_bounds = AREA_FOCUS_BOUNDS_M2 if in_focus else AREA_BOUNDS_M2
+
+        altitude_km = _interp_bounds(u[i, 0], altitude_bounds)
+        inclination_deg = _interp_bounds(u[i, 1], INCLINATION_BOUNDS_DEG)
+        raan_deg = _interp_bounds(u[i, 2], RAAN_BOUNDS_DEG)
         theta_rad = 2.0 * np.pi * u[i, 3]
-        log_a = log_a_min + u[i, 4] * (log_a_max - log_a_min)
-        argon_rate = _sample_argon_rate(float(u[i, 5]), rng)
+        area_m2 = _interp_log_bounds(u[i, 4], area_bounds)
         dt, lat_deg, lon_deg, orbital_speed_m_s = _orbital_point(
             float(altitude_km),
             float(inclination_deg),
@@ -149,7 +143,7 @@ def main() -> None:
                 "O_m3": float(st["O_m3"]),
                 "N_m3": float(st["N_m3"]),
                 "T_K": float(st["T_K"]),
-                "intake_area_m2": float(10**log_a),
+                "intake_area_m2": float(area_m2),
                 "altitude_km": float(altitude_km),
                 "orbital_speed_m_s": float(orbital_speed_m_s),
                 "inclination_deg": float(inclination_deg),
@@ -157,13 +151,14 @@ def main() -> None:
                 "theta_rad": float(theta_rad),
                 "lat_deg": float(lat_deg),
                 "lon_deg": float(lon_deg),
-                "argon_injection_rate": float(argon_rate),
+                "argon_injection_rate": 0.0,
                 "date": dt.isoformat(),
                 "f107": float(f107),
                 "f107a": float(f107a),
                 "ap": float(ap),
                 "total_thrust_N": None,
                 "needs_simulation": True,
+                "sampling_zone": "focus" if in_focus else "global",
             }
         )
 
@@ -181,12 +176,16 @@ def main() -> None:
             "f107a_at_ref_date": float(f107a0),
             "ap_at_ref_date": float(ap0),
             "n_points": int(N_POINTS),
+            "n_focus_points": int(n_focus),
             "random_seed": int(RANDOM_SEED),
             "altitude_bounds_km": list(ALTITUDE_BOUNDS_KM),
+            "altitude_focus_bounds_km": list(ALTITUDE_FOCUS_BOUNDS_KM),
             "inclination_bounds_deg": list(INCLINATION_BOUNDS_DEG),
             "raan_bounds_deg": list(RAAN_BOUNDS_DEG),
             "area_bounds_m2": list(AREA_BOUNDS_M2),
-            "argon_injection_rate_bounds": list(ARGON_BOUNDS_RATE),
+            "area_focus_bounds_m2": list(AREA_FOCUS_BOUNDS_M2),
+            "focus_fraction": float(FOCUS_FRACTION),
+            "argon_injection_rate_bounds": [0.0, 0.0],
             "density_bounds_m3": {
                 "N2_m3": [float(np.min(n2_vals)), float(np.max(n2_vals))],
                 "O2_m3": [float(np.min(o2_vals)), float(np.max(o2_vals))],
