@@ -9,6 +9,24 @@ import numpy as np
 
 from common import OUT_DIR, Case, build_sample_from_case, drag_components, isp_s, mdot_kg_s, solve_plasma_sample, weather_records
 
+OPT_ALTITUDE_KM = 178.52855422156537
+OPT_AREA_M2 = 0.23586017020886357
+
+
+def _focused_axis(bounds: tuple[float, float], center: float, coarse_count: int, fine_half_width: float, fine_count: int, log_scale: bool = False) -> np.ndarray:
+    lo, hi = bounds
+    if log_scale:
+        coarse = np.logspace(np.log10(lo), np.log10(hi), max(3, int(coarse_count)))
+        fine_lo = max(lo, center / fine_half_width)
+        fine_hi = min(hi, center * fine_half_width)
+        fine = np.logspace(np.log10(fine_lo), np.log10(fine_hi), max(5, int(fine_count)))
+    else:
+        coarse = np.linspace(lo, hi, max(3, int(coarse_count)))
+        fine_lo = max(lo, center - fine_half_width)
+        fine_hi = min(hi, center + fine_half_width)
+        fine = np.linspace(fine_lo, fine_hi, max(5, int(fine_count)))
+    return np.unique(np.concatenate([coarse, fine]))
+
 
 def _evaluate_grid(
     altitudes: np.ndarray,
@@ -81,27 +99,36 @@ def figure_4_map(out_dir: Path, grid: dict) -> None:
     area_grid, alt_grid = np.meshgrid(areas, altitudes)
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
-    pcm = axes[0, 0].pcolormesh(area_grid, alt_grid, np.maximum(thrust, 1e-12), norm=mcolors.LogNorm(), shading="nearest")
+    pcm = axes[0, 0].contourf(
+        area_grid,
+        alt_grid,
+        np.maximum(thrust, 1e-12),
+        levels=28,
+        norm=mcolors.LogNorm(),
+    )
     axes[0, 0].set_xscale("log")
     axes[0, 0].set_title("Thrust [N]")
     fig.colorbar(pcm, ax=axes[0, 0])
 
     vmax = np.nanmax(np.abs(margin))
-    pcm = axes[0, 1].pcolormesh(area_grid, alt_grid, margin, cmap="RdYlGn", norm=mcolors.SymLogNorm(linthresh=1e-7, vmin=-vmax, vmax=vmax), shading="nearest")
+    pcm = axes[0, 1].contourf(
+        area_grid,
+        alt_grid,
+        margin,
+        levels=31,
+        cmap="RdYlGn",
+        norm=mcolors.SymLogNorm(linthresh=1e-7, vmin=-vmax, vmax=vmax),
+    )
     axes[0, 1].set_xscale("log")
     axes[0, 1].set_title("Margin = Thrust - Drag [N]")
     fig.colorbar(pcm, ax=axes[0, 1])
-    axes[0, 1].text(0.012, 245, "Upper bound: low density", fontsize=8)
-    axes[0, 1].text(0.5, 155, "Lower bound: high drag", fontsize=8)
-    axes[0, 1].text(0.02, 200, "Left bound: low capture", fontsize=8)
-    axes[0, 1].text(0.7, 200, "Right bound: power-starved", fontsize=8)
 
-    pcm = axes[1, 0].pcolormesh(area_grid, alt_grid, isp, cmap="plasma", shading="nearest")
+    pcm = axes[1, 0].contourf(area_grid, alt_grid, isp, levels=28, cmap="plasma")
     axes[1, 0].set_xscale("log")
     axes[1, 0].set_title("Isp [s]")
     fig.colorbar(pcm, ax=axes[1, 0])
 
-    pcm = axes[1, 1].pcolormesh(area_grid, alt_grid, ratio, cmap="viridis", shading="nearest")
+    pcm = axes[1, 1].contourf(area_grid, alt_grid, ratio, levels=28, cmap="viridis")
     axes[1, 1].set_xscale("log")
     axes[1, 1].set_title("T/D ratio")
     fig.colorbar(pcm, ax=axes[1, 1])
@@ -116,9 +143,10 @@ def figure_4_map(out_dir: Path, grid: dict) -> None:
     plt.close(fig)
 
 
-def figure_5_cut_altitude(out_dir: Path, areas: np.ndarray, altitudes: tuple[float, float], power_rf_w: float, fast_mode: bool) -> None:
+def figure_5_cut_altitude(out_dir: Path, areas: np.ndarray, altitudes: tuple[float, ...], power_rf_w: float, fast_mode: bool) -> None:
     records, f107a_map = weather_records()
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
+    fig, axes = plt.subplots(1, len(altitudes), figsize=(5 * len(altitudes), 4), sharey=True)
+    axes = np.atleast_1d(axes)
     for ax, alt in zip(axes, altitudes):
         thrust_vals = []
         d_intake = []
@@ -146,6 +174,7 @@ def figure_5_cut_altitude(out_dir: Path, areas: np.ndarray, altitudes: tuple[flo
         ax.plot(areas, d_lateral, "--", label="Drag lateral (model=0)")
         ax.plot(areas, margin, linewidth=2.0, label="Margin")
         ax.set_xscale("log")
+        ax.set_yscale("symlog", linthresh=1e-6)
         ax.set_title(f"Altitude {alt:.0f} km")
         ax.set_xlabel("A_intake [m²]")
         ax.grid(True, alpha=0.3)
@@ -176,6 +205,7 @@ def figure_6_cut_area(out_dir: Path, altitudes: np.ndarray, areas: tuple[float, 
         ax.plot(altitudes, thrust_vals, label="Thrust")
         ax.plot(altitudes, drag_vals, label="Drag")
         ax.plot(altitudes, margin_vals, label="Margin")
+        ax.set_yscale("symlog", linthresh=1e-6)
         ax.set_title(f"A_intake={area:.2f} m²")
         ax.set_xlabel("Altitude [km]")
         ax.grid(True, alpha=0.3)
@@ -196,15 +226,14 @@ def main() -> None:
 
     out_dir = OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    altitudes = np.linspace(150.0, 250.0, int(args.n_alt))
-    areas = np.logspace(np.log10(1e-2), np.log10(1.0), int(args.n_area))
+    altitudes = _focused_axis((150.0, 210.0), OPT_ALTITUDE_KM, coarse_count=int(args.n_alt), fine_half_width=15.0, fine_count=max(7, int(args.n_alt) + 4), log_scale=False)
+    areas = _focused_axis((5e-2, 1.0), OPT_AREA_M2, coarse_count=int(args.n_area), fine_half_width=1.8, fine_count=max(7, int(args.n_area) + 4), log_scale=True)
     grid = _evaluate_grid(altitudes, areas, power_rf_w=float(args.power_rf), fast_mode=bool(args.fast))
     figure_4_map(out_dir, grid)
-    figure_5_cut_altitude(out_dir, areas=np.logspace(np.log10(1e-2), np.log10(1.0), 16), altitudes=(180.0, 200.0), power_rf_w=float(args.power_rf), fast_mode=bool(args.fast))
+    figure_5_cut_altitude(out_dir, areas=np.logspace(np.log10(1e-2), np.log10(1.0), 16), altitudes=(160.0, 180.0, 200.0), power_rf_w=float(args.power_rf), fast_mode=bool(args.fast))
     figure_6_cut_area(out_dir, altitudes=np.linspace(150.0, 250.0, 24), areas=(0.05, 0.1, 0.3), power_rf_w=float(args.power_rf), fast_mode=bool(args.fast))
     print(f"Saved Section B figures to {out_dir}")
 
 
 if __name__ == "__main__":
     main()
-

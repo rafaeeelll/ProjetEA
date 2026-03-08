@@ -96,11 +96,9 @@ def main() -> None:
     out_dir = OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     figure_1_tradeoff(out_dir)
-    figure_2_beta_vs_altitude(out_dir, area_m2=float(args.area_m2))
     figure_3_composition_vs_altitude(out_dir, area_m2=float(args.area_m2))
     print(f"Saved Section A figures to {out_dir}")
 
 
 if __name__ == "__main__":
     main()
-

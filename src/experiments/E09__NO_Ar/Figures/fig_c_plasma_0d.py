@@ -117,7 +117,7 @@ def figure_8_power_balance(out_dir: Path) -> None:
 def figure_9_prf_sensitivity(out_dir: Path, fast_mode: bool) -> None:
     records, f107a_map = weather_records()
     sample = build_sample_from_case(Case(altitude_km=190.0, area_m2=0.1), records=records, f107a_map=f107a_map)
-    p_rf = np.linspace(100.0, 5000.0, 16)
+    p_rf = np.linspace(100.0, 3000.0, 16)
     thrust = []
     isp = []
     eta_mass_proxy = []
@@ -209,4 +209,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
