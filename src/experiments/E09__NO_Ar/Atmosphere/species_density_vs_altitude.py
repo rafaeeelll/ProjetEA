@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--out",
         type=str,
-        default=os.path.join("figures", "E09", "atmosphere", "species_density_vs_altitude_fixed_point.png"),
+        default=os.path.join("figures", "E09", "atmosphere", "Fig_2_2_species_density_vs_altitude_fixed_point.png"),
         help="Chemin de sortie (png/pdf/svg)",
     )
     return parser.parse_args()
@@ -174,7 +174,6 @@ def main() -> None:
     plt.semilogy(altitudes, series["O2"], label="O2", linewidth=1.8)
     plt.semilogy(altitudes, series["O"], label="O", linewidth=1.8)
     plt.semilogy(altitudes, series["N"], label="N", linewidth=1.8)
-    plt.semilogy(altitudes, series["Total"], label="Total", linestyle="--", linewidth=2.0, color="black")
 
     plt.xlabel("Altitude (km)")
     plt.ylabel("Densité numérique (m⁻³)")
@@ -191,6 +190,24 @@ def main() -> None:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=220)
+    plt.close()
+
+    total_arr = np.maximum(np.asarray(series["Total"], dtype=float), 1e-30)
+    frac_fig_path = out_path.with_name("Fig_2_5_species_molar_fractions_vs_altitude_fixed_point.png")
+    plt.figure(figsize=(11, 6))
+    for species in ["N2", "O2", "O", "N"]:
+        plt.plot(altitudes, np.asarray(series[species], dtype=float) / total_arr, label=species, linewidth=1.8)
+    plt.xlabel("Altitude (km)")
+    plt.ylabel("Fraction molaire [-]")
+    plt.ylim(0.0, 1.0)
+    plt.title(
+        f"Fractions molaires vs altitude à date/position fixées | date={dt.isoformat(timespec='seconds')}\n"
+        f"lat={args.lat:.1f}°, lon={args.lon:.1f}° | F10.7={f107_res:.1f}, F10.7A={f107a_res:.1f}, Ap={ap_res:.1f}"
+    )
+    plt.grid(True, alpha=0.3)
+    plt.legend(loc="best")
+    plt.tight_layout()
+    plt.savefig(frac_fig_path, dpi=220)
     plt.close()
 
     stats_path = out_path.with_name(f"{out_path.stem}_stats.json")
@@ -214,6 +231,7 @@ def main() -> None:
         )
 
     print(f"Figure sauvegardée: {out_path}")
+    print(f"Figure fractions sauvegardée: {frac_fig_path}")
     print(f"Statistiques sauvegardées: {stats_path}")
     print("\nRésumé stats (min altitude, moyenne, écart min-moyenne):")
     for species in ["N2", "O2", "O", "N", "Total"]:

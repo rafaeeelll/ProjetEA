@@ -139,7 +139,7 @@ def figure_4_map(out_dir: Path, grid: dict) -> None:
         ax.grid(True, alpha=0.2)
 
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("B4_feasibility_map_4panels.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Fig_3_12_B4_feasibility_map_4panels.png"), dpi=220)
     plt.close(fig)
 
 
@@ -151,7 +151,6 @@ def figure_5_cut_altitude(out_dir: Path, areas: np.ndarray, altitudes: tuple[flo
         thrust_vals = []
         d_intake = []
         d_body = []
-        d_lateral = []
         d_total = []
         margin = []
         for area in areas:
@@ -164,14 +163,12 @@ def figure_5_cut_altitude(out_dir: Path, areas: np.ndarray, altitudes: tuple[flo
             thrust_vals.append(thrust_n)
             d_intake.append(dd["drag_intake_N"])
             d_body.append(dd["drag_body_N"])
-            d_lateral.append(dd["drag_lateral_N"])
             d_total.append(dd["drag_total_N"])
             margin.append(thrust_n - dd["drag_total_N"])
         ax.plot(areas, thrust_vals, label="Thrust")
         ax.plot(areas, d_total, label="Drag total")
         ax.plot(areas, d_intake, "--", label="Drag intake")
         ax.plot(areas, d_body, "--", label="Drag body")
-        ax.plot(areas, d_lateral, "--", label="Drag lateral (model=0)")
         ax.plot(areas, margin, linewidth=2.0, label="Margin")
         ax.set_xscale("log")
         ax.set_yscale("symlog", linthresh=1e-6)
@@ -181,7 +178,7 @@ def figure_5_cut_altitude(out_dir: Path, areas: np.ndarray, altitudes: tuple[flo
     axes[0].set_ylabel("N")
     axes[-1].legend(fontsize=8)
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("B5_cut_fixed_altitude.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Fig_3_10a_B5_cut_fixed_altitude.png"), dpi=220)
     plt.close(fig)
 
 
@@ -212,7 +209,7 @@ def figure_6_cut_area(out_dir: Path, altitudes: np.ndarray, areas: tuple[float, 
     axes[0].set_ylabel("N")
     axes[-1].legend(fontsize=8)
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("B6_cut_fixed_area.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Fig_3_10b_B6_cut_fixed_area.png"), dpi=220)
     plt.close(fig)
 
 

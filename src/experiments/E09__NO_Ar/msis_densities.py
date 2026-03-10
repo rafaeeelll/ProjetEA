@@ -12,6 +12,7 @@ from scipy.constants import e, k as k_B
 SPACE_WEATHER_PATH = (
     Path(__file__).resolve().parents[3].joinpath("data", "space_weather.txt")
 )
+FIGURES_DIR = Path(__file__).resolve().parents[3].joinpath("figures", "E09")
 
 
 def _parse_space_weather(path: Path) -> dict[date_cls, dict[str, object]]:
@@ -281,11 +282,16 @@ def main():
     plt.plot(angles, density_Ar, lw=2.0, label="Ar")
     plt.xlabel("Angle orbital (rad)")
     plt.ylabel("Densité (m$^{-3}$)")
+    plt.yscale("log")
     plt.title("Densité MSIS par espèce vs angle (orbite circulaire)")
-    plt.grid(True, alpha=0.3)
+    plt.grid(True, which="both", alpha=0.3)
     plt.legend()
     plt.tight_layout()
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    save_path = FIGURES_DIR.joinpath("Fig_2_3_species_density_vs_orbit_angle.png")
+    plt.savefig(save_path, dpi=220)
     plt.show()
+    print(f"Figure sauvegardee: {save_path}")
 
 
 if __name__ == "__main__":

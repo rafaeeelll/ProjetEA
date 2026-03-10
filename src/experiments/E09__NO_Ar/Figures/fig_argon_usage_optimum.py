@@ -10,8 +10,8 @@ from common import (
     OUT_DIR,
     Case,
     build_sample_from_case,
-    drag_components,
     ensure_out_dir,
+    drag_components,
     isp_s,
     mdot_kg_s,
     save_json,
@@ -20,16 +20,14 @@ from common import (
 )
 
 
-# Current no-argon optimum from active_learning_until_criterion.py log.
 OPT_ALTITUDE_KM = 178.52855422156537
 OPT_INCLINATION_DEG = 20.0
 OPT_RAAN_DEG = -13.0
 OPT_AREA_M2 = 0.23586017020886357
 DEFAULT_POWER_RF_W = 1000.0
-
-TANK_MASSES_KG = np.array([0.01, 0.1, 1.0, 10.0], dtype=float)
-TANK_LABELS = ["10 g", "100 g", "1 kg", "10 kg"]
 M_AR = 6.63e-26
+SECONDS_PER_DAY = 86400.0
+DAYS_PER_YEAR = 365.25
 
 
 def _argon_rates(n_rates: int, rate_min: float, rate_max: float) -> np.ndarray:
@@ -39,7 +37,7 @@ def _argon_rates(n_rates: int, rate_min: float, rate_max: float) -> np.ndarray:
     return np.concatenate(([0.0], positive))
 
 
-def _orbit_stats(
+def _orbit_scan(
     altitude_km: float,
     inclination_deg: float,
     raan_deg: float,
@@ -52,71 +50,174 @@ def _orbit_stats(
     records, f107a_map = weather_records()
     thetas = np.linspace(0.0, 2.0 * np.pi, orbit_points, endpoint=False)
 
-    thrusts = []
-    drags = []
-    margins = []
-    mdots = []
+    rho_vals = []
+    drag_vals = []
+    thrust_vals = []
+    margin_vals = []
+    isp_vals = []
 
     for idx, theta in enumerate(thetas):
-        sample = build_sample_from_case(
-            Case(
-                altitude_km=altitude_km,
-                area_m2=area_m2,
-                argon_rate=argon_rate,
-                inclination_deg=inclination_deg,
-                raan_deg=raan_deg,
-                theta_rad=float(theta),
-            ),
-            records=records,
-            f107a_map=f107a_map,
+        case = Case(
+            altitude_km=altitude_km,
+            area_m2=area_m2,
+            argon_rate=argon_rate,
+            inclination_deg=inclination_deg,
+            raan_deg=raan_deg,
+            theta_rad=float(theta),
         )
+        sample_dict = build_sample_from_case(case, records=records, f107a_map=f107a_map)
         plasma = solve_plasma_sample(
-            sample,
+            sample_dict,
             power_rf_w=power_rf_w,
             fast_mode=fast_mode,
             simulation_name=f"figAr_rate_{argon_rate:.2e}_{idx:02d}",
         )
+        drag = drag_components(sample_dict)
         thrust = float(plasma["thrust_final_N"])
-        drag = float(drag_components(sample)["drag_total_N"])
-        mdot = float(mdot_kg_s(sample))
+        mdot = mdot_kg_s(sample_dict)
+        rho_vals.append(float(drag["rho"]))
+        drag_vals.append(float(drag["drag_total_N"]))
+        thrust_vals.append(thrust)
+        margin_vals.append(thrust - float(drag["drag_total_N"]))
+        isp_vals.append(float(isp_s(thrust, mdot)))
 
-        thrusts.append(thrust)
-        drags.append(drag)
-        margins.append(thrust - drag)
-        mdots.append(mdot)
+    rho_arr = np.asarray(rho_vals, dtype=float)
+    drag_arr = np.asarray(drag_vals, dtype=float)
+    thrust_arr = np.asarray(thrust_vals, dtype=float)
+    margin_arr = np.asarray(margin_vals, dtype=float)
+    isp_arr = np.asarray(isp_vals, dtype=float)
 
-    thrusts_arr = np.asarray(thrusts, dtype=float)
-    drags_arr = np.asarray(drags, dtype=float)
-    margins_arr = np.asarray(margins, dtype=float)
-    mdots_arr = np.asarray(mdots, dtype=float)
-    isp_arr = np.array([isp_s(t, m) for t, m in zip(thrusts_arr, mdots_arr)], dtype=float)
-
+    rho_min_idx = int(np.argmin(rho_arr))
+    rho_max_idx = int(np.argmax(rho_arr))
+    bottleneck_idx = int(np.argmin(margin_arr))
     argon_mdot = float(argon_rate * M_AR)
-    mean_total_mdot = float(np.mean(mdots_arr))
+
     return {
         "argon_rate": float(argon_rate),
         "argon_mdot_kg_s": argon_mdot,
-        "mean_total_mdot_kg_s": mean_total_mdot,
-        "min_margin_N": float(np.min(margins_arr)),
-        "mean_margin_N": float(np.mean(margins_arr)),
-        "min_thrust_N": float(np.min(thrusts_arr)),
-        "mean_thrust_N": float(np.mean(thrusts_arr)),
-        "mean_drag_N": float(np.mean(drags_arr)),
+        "argon_mdot_mg_s": float(argon_mdot * 1e6),
+        "thetas_rad": thetas.tolist(),
+        "rho_kg_m3": rho_arr.tolist(),
+        "drag_N": drag_arr.tolist(),
+        "thrust_N": thrust_arr.tolist(),
+        "margin_N": margin_arr.tolist(),
+        "isp_s": isp_arr.tolist(),
+        "min_margin_N": float(np.min(margin_arr)),
+        "mean_margin_N": float(np.mean(margin_arr)),
         "min_isp_s": float(np.min(isp_arr)),
         "mean_isp_s": float(np.mean(isp_arr)),
-        "bottleneck_index": int(np.argmin(margins_arr)),
+        "bottleneck_index": bottleneck_idx,
+        "bottleneck_thrust_N": float(thrust_arr[bottleneck_idx]),
+        "bottleneck_drag_N": float(drag_arr[bottleneck_idx]),
+        "bottleneck_isp_s": float(isp_arr[bottleneck_idx]),
+        "bottleneck_td_ratio": float(thrust_arr[bottleneck_idx] / max(drag_arr[bottleneck_idx], 1e-30)),
+        "rho_min_index": rho_min_idx,
+        "rho_max_index": rho_max_idx,
+        "thrust_rho_min_N": float(thrust_arr[rho_min_idx]),
+        "thrust_rho_max_N": float(thrust_arr[rho_max_idx]),
+        "drag_rho_min_N": float(drag_arr[rho_min_idx]),
+        "drag_rho_max_N": float(drag_arr[rho_max_idx]),
     }
 
 
-def _tank_lifetime_days(tank_mass_kg: float, argon_mdot_kg_s: float) -> float:
-    if argon_mdot_kg_s <= 0.0:
-        return float("inf")
-    return float(tank_mass_kg / argon_mdot_kg_s / 86400.0)
+def _zero_crossing_mg_s(rows: list[dict]) -> float | None:
+    x = np.asarray([row["argon_mdot_mg_s"] for row in rows], dtype=float)
+    y = np.asarray([row["min_margin_N"] for row in rows], dtype=float)
+    if y.size == 0:
+        return None
+    if y[0] >= 0.0:
+        return 0.0
+    for i in range(1, len(rows)):
+        if y[i] >= 0.0:
+            x0 = max(x[i - 1], 1e-12)
+            x1 = max(x[i], 1e-12)
+            y0 = y[i - 1]
+            y1 = y[i]
+            if np.isclose(y1, y0):
+                return float(x1)
+            w = (0.0 - y0) / (y1 - y0)
+            logx = np.log(x0) + w * (np.log(x1) - np.log(x0))
+            return float(np.exp(logx))
+    return None
 
 
-def _finite_positive(values: np.ndarray) -> np.ndarray:
-    arr = np.asarray(values, dtype=float)
-    return arr[np.isfinite(arr) & (arr > 0.0)]
+def _nearest_row_by_mdot(rows: list[dict], target_mg_s: float | None) -> dict:
+    positive_rows = [row for row in rows if row["argon_mdot_mg_s"] > 0.0]
+    if not positive_rows:
+        return rows[0]
+    if target_mg_s is None or target_mg_s <= 0.0:
+        return max(
+            positive_rows,
+            key=lambda row: float(row.get("gain_per_argon_kg_s", float("-inf"))),
+        )
+    return min(positive_rows, key=lambda row: abs(float(row["argon_mdot_mg_s"]) - float(target_mg_s)))
+
+
+def _scenario_rows(reference_row: dict) -> list[tuple[str, float, float, float, float, float]]:
+    reference_mdot = float(reference_row["argon_mdot_kg_s"])
+    scenarios = [
+        ("Continu pessimiste", 1.0),
+        ("Variable central", 0.5),
+        ("Variable optimiste", 0.3),
+    ]
+    out = []
+    for label, chi in scenarios:
+        avg_mdot = chi * reference_mdot
+        avg_mg_s = avg_mdot * 1e6
+        cons_g_day = avg_mdot * SECONDS_PER_DAY * 1e3
+        tank_1y = avg_mdot * DAYS_PER_YEAR * SECONDS_PER_DAY
+        tank_5y = 5.0 * tank_1y
+        out.append((label, chi, avg_mg_s, cons_g_day, tank_1y, tank_5y))
+    return out
+
+
+def _want(tag: str, selected: set[str]) -> bool:
+    return "all" in selected or tag in selected
+
+
+def _build_altitude_comparison(
+    altitude_min_km: float,
+    altitude_max_km: float,
+    n_altitudes: int,
+    inclination_deg: float,
+    raan_deg: float,
+    area_m2: float,
+    argon_rate: float,
+    power_rf_w: float,
+    fast_mode: bool,
+    theta_rad: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    from common import build_sample_from_case, weather_records
+
+    records, f107a_map = weather_records()
+    altitudes = np.linspace(altitude_min_km, altitude_max_km, n_altitudes)
+    thrust_air = []
+    thrust_argon = []
+    for alt in altitudes:
+        for rate, bucket in ((0.0, thrust_air), (argon_rate, thrust_argon)):
+            sample = build_sample_from_case(
+                Case(
+                    altitude_km=float(alt),
+                    area_m2=float(area_m2),
+                    argon_rate=float(rate),
+                    inclination_deg=float(inclination_deg),
+                    raan_deg=float(raan_deg),
+                    theta_rad=float(theta_rad),
+                ),
+                records=records,
+                f107a_map=f107a_map,
+            )
+            try:
+                thrust = solve_plasma_sample(
+                    sample,
+                    power_rf_w=float(power_rf_w),
+                    fast_mode=fast_mode,
+                    simulation_name=f"figAr_alt_{alt:.1f}_{rate:.2e}",
+                )["thrust_final_N"]
+            except Exception:
+                thrust = 0.0
+            bucket.append(float(thrust))
+    return altitudes, np.asarray(thrust_air, dtype=float), np.asarray(thrust_argon, dtype=float)
 
 
 def main() -> None:
@@ -126,44 +227,108 @@ def main() -> None:
     parser.add_argument("--raan-deg", type=float, default=OPT_RAAN_DEG)
     parser.add_argument("--area-m2", type=float, default=OPT_AREA_M2)
     parser.add_argument("--power-rf-w", type=float, default=DEFAULT_POWER_RF_W)
-    parser.add_argument("--orbit-points", type=int, default=12)
-    parser.add_argument("--n-rates", type=int, default=7)
+    parser.add_argument("--orbit-points", type=int, default=15)
+    parser.add_argument("--n-rates", type=int, default=9)
     parser.add_argument("--argon-rate-min", type=float, default=1e16)
     parser.add_argument("--argon-rate-max", type=float, default=5e18)
+    parser.add_argument("--altitude-compare-min-km", type=float, default=150.0)
+    parser.add_argument("--altitude-compare-max-km", type=float, default=250.0)
+    parser.add_argument("--altitude-compare-points", type=int, default=15)
+    parser.add_argument("--theta-compare-rad", type=float, default=0.0)
+    parser.add_argument(
+        "--reference-argon-rate",
+        type=float,
+        default=None,
+        help="Exact argon injection rate [part/s] used for Figure 3.15 and Table 3.1.",
+    )
+    parser.add_argument(
+        "--only",
+        nargs="*",
+        choices=["3_13", "3_14", "3_15", "table_3_1", "all"],
+        default=["all"],
+        help="Restrict output generation to a subset of report figures.",
+    )
     parser.add_argument("--fast", action="store_true")
     args = parser.parse_args()
 
     out_dir = ensure_out_dir()
-    rates = _argon_rates(int(args.n_rates), float(args.argon_rate_min), float(args.argon_rate_max))
-    rows = [
-        _orbit_stats(
-            altitude_km=float(args.altitude_km),
-            inclination_deg=float(args.inclination_deg),
-            raan_deg=float(args.raan_deg),
-            area_m2=float(args.area_m2),
-            argon_rate=float(rate),
-            orbit_points=int(args.orbit_points),
-            power_rf_w=float(args.power_rf_w),
-            fast_mode=bool(args.fast),
-        )
-        for rate in rates
-    ]
+    selected = set(args.only)
+    need_reference = _want("3_15", selected) or _want("table_3_1", selected)
+    need_sweep = _want("3_13", selected) or _want("3_14", selected) or (need_reference and args.reference_argon_rate is None)
 
-    baseline_margin = rows[0]["min_margin_N"]
+    rows: list[dict]
+    if need_sweep:
+        rates = _argon_rates(int(args.n_rates), float(args.argon_rate_min), float(args.argon_rate_max))
+        rows = [
+            _orbit_scan(
+                altitude_km=float(args.altitude_km),
+                inclination_deg=float(args.inclination_deg),
+                raan_deg=float(args.raan_deg),
+                area_m2=float(args.area_m2),
+                argon_rate=float(rate),
+                orbit_points=int(args.orbit_points),
+                power_rf_w=float(args.power_rf_w),
+                fast_mode=bool(args.fast),
+            )
+            for rate in rates
+        ]
+    else:
+        rows = [
+            _orbit_scan(
+                altitude_km=float(args.altitude_km),
+                inclination_deg=float(args.inclination_deg),
+                raan_deg=float(args.raan_deg),
+                area_m2=float(args.area_m2),
+                argon_rate=0.0,
+                orbit_points=int(args.orbit_points),
+                power_rf_w=float(args.power_rf_w),
+                fast_mode=bool(args.fast),
+            )
+        ]
+
+    baseline_margin = float(rows[0]["min_margin_N"])
     for row in rows:
         argon_mdot = float(row["argon_mdot_kg_s"])
-        total_mdot = float(row["mean_total_mdot_kg_s"])
         delta_margin = float(row["min_margin_N"] - baseline_margin)
         row["delta_min_margin_N"] = delta_margin
-        row["gain_per_argon_kg_s"] = float(delta_margin / total_mdot) if total_mdot > 0.0 else float("nan")
-        row["tank_lifetime_days"] = {
-            label: _tank_lifetime_days(mass, argon_mdot)
-            for label, mass in zip(TANK_LABELS, TANK_MASSES_KG)
-        }
+        row["gain_per_argon_kg_s"] = float(delta_margin / argon_mdot) if argon_mdot > 0.0 else float("nan")
 
-    positive_rows = [row for row in rows if row["argon_rate"] > 0.0]
-    best_abs = max(rows, key=lambda row: row["min_margin_N"])
-    best_eff = max(positive_rows, key=lambda row: row["gain_per_argon_kg_s"]) if positive_rows else None
+    ar_min_mg_s = _zero_crossing_mg_s(rows) if len(rows) > 1 else None
+    reference_row = None
+    altitude_compare = thrust_air_alt = thrust_arg_alt = None
+    if need_reference:
+        if args.reference_argon_rate is not None:
+            reference_row = _orbit_scan(
+                altitude_km=float(args.altitude_km),
+                inclination_deg=float(args.inclination_deg),
+                raan_deg=float(args.raan_deg),
+                area_m2=float(args.area_m2),
+                argon_rate=float(args.reference_argon_rate),
+                orbit_points=int(args.orbit_points),
+                power_rf_w=float(args.power_rf_w),
+                fast_mode=bool(args.fast),
+            )
+            reference_row["delta_min_margin_N"] = float(reference_row["min_margin_N"] - baseline_margin)
+            argon_mdot = float(reference_row["argon_mdot_kg_s"])
+            reference_row["gain_per_argon_kg_s"] = (
+                float(reference_row["delta_min_margin_N"] / argon_mdot) if argon_mdot > 0.0 else float("nan")
+            )
+        else:
+            reference_row = _nearest_row_by_mdot(rows, ar_min_mg_s)
+
+        if _want("3_15", selected):
+            altitude_compare, thrust_air_alt, thrust_arg_alt = _build_altitude_comparison(
+                altitude_min_km=float(args.altitude_compare_min_km),
+                altitude_max_km=float(args.altitude_compare_max_km),
+                n_altitudes=int(args.altitude_compare_points),
+                inclination_deg=float(args.inclination_deg),
+                raan_deg=float(args.raan_deg),
+                area_m2=float(args.area_m2),
+                argon_rate=float(reference_row["argon_rate"]),
+                power_rf_w=float(args.power_rf_w),
+                fast_mode=bool(args.fast),
+                theta_rad=float(args.theta_compare_rad),
+            )
 
     payload = {
         "design": {
@@ -174,86 +339,143 @@ def main() -> None:
             "power_rf_w": float(args.power_rf_w),
             "orbit_points": int(args.orbit_points),
         },
-        "best_absolute_margin": best_abs,
-        "best_margin_per_argon": best_eff,
+        "argon_zero_crossing_mg_s": ar_min_mg_s,
+        "reference_row": reference_row,
         "rows": rows,
     }
     save_json(out_dir.joinpath("argon_usage_optimum.json"), payload)
 
-    rates_arr = np.asarray([row["argon_rate"] for row in rows], dtype=float)
-    min_margin_arr = np.asarray([row["min_margin_N"] for row in rows], dtype=float)
-    min_thrust_arr = np.asarray([row["min_thrust_N"] for row in rows], dtype=float)
-    min_isp_arr = np.asarray([row["min_isp_s"] for row in rows], dtype=float)
-    eff_arr = np.asarray([row["gain_per_argon_kg_s"] for row in rows], dtype=float)
+    x_mg_s = np.asarray([row["argon_mdot_mg_s"] for row in rows], dtype=float)
+    thrust_rho_min_mn = 1e3 * np.asarray([row["thrust_rho_min_N"] for row in rows], dtype=float)
+    thrust_rho_max_mn = 1e3 * np.asarray([row["thrust_rho_max_N"] for row in rows], dtype=float)
+    drag_rho_min_mn = 1e3 * np.asarray([row["drag_rho_min_N"] for row in rows], dtype=float)
+    drag_rho_max_mn = 1e3 * np.asarray([row["drag_rho_max_N"] for row in rows], dtype=float)
+    min_margin_mn = 1e3 * np.asarray([row["min_margin_N"] for row in rows], dtype=float)
+    min_isp_s = np.asarray([row["min_isp_s"] for row in rows], dtype=float)
+    mean_isp_s = np.asarray([row["mean_isp_s"] for row in rows], dtype=float)
+    bottleneck_td_ratio = np.asarray([row["bottleneck_td_ratio"] for row in rows], dtype=float)
 
-    positive_rates = _finite_positive(rates_arr)
-    x_min = float(np.min(positive_rates)) if positive_rates.size else 1e17
-    x_max = float(np.max(positive_rates)) if positive_rates.size else 1e18
+    positive_mg_s = x_mg_s[x_mg_s > 0.0]
+    linthresh = float(np.min(positive_mg_s)) if positive_mg_s.size else 1e-4
+    x_plot_mg_s = positive_mg_s
+    min_margin_plot_mn = min_margin_mn[x_mg_s > 0.0]
+    td_ratio_plot = bottleneck_td_ratio[x_mg_s > 0.0]
 
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8))
-    ax = axes[0, 0]
-    ax.semilogx(rates_arr[1:], min_margin_arr[1:], marker="o")
-    ax.axhline(min_margin_arr[0], color="k", linestyle="--", alpha=0.5, label="No Ar")
-    ax.set_title("Worst-case orbit margin")
-    ax.set_ylabel("min(T-D) [N]")
-    ax.grid(True, alpha=0.3)
-    ax.legend()
+    if _want("3_13", selected):
+        fig, ax = plt.subplots(figsize=(8.5, 5.0))
+        if ar_min_mg_s is not None and ar_min_mg_s > 0.0:
+            ax.axvspan(0.0, ar_min_mg_s, color="0.92", zorder=0, label="Zone non viable")
+            ax.axvline(ar_min_mg_s, color="k", linestyle="--", linewidth=1.2, label=r"$\dot m_{Ar,min}$")
+        ax.plot(x_mg_s, thrust_rho_min_mn, marker="o", label=r"Thrust (densité min)")
+        ax.plot(x_mg_s, thrust_rho_max_mn, marker="o", label=r"Thrust (densité max)")
+        ax.plot(x_mg_s, drag_rho_min_mn, linestyle="--", label=r"Drag (densité min)")
+        ax.plot(x_mg_s, drag_rho_max_mn, linestyle="--", label=r"Drag (densité max)")
+        ax.set_xscale("symlog", linthresh=linthresh)
+        ax.set_xlabel(r"$\dot m_{Ar}$ [mg/s]")
+        ax.set_ylabel("Force [mN]")
+        ax.set_title("Forces aux extrema de densité orbitale")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.legend(fontsize=8)
+        fig.tight_layout()
+        fig.savefig(out_dir.joinpath("Fig_3_13_argon_thrust_drag_vs_rate.png"), dpi=220)
+        plt.close(fig)
 
-    ax = axes[0, 1]
-    ax.semilogx(rates_arr[1:], min_thrust_arr[1:], marker="o", label="Min thrust")
-    ax.set_title("Worst-case thrust")
-    ax.set_ylabel("Thrust [N]")
-    ax.grid(True, alpha=0.3)
+        fig, ax = plt.subplots(figsize=(8.0, 4.8))
+        ax.plot(x_mg_s, min_isp_s, marker="o", label="Isp min sur orbite")
+        ax.plot(x_mg_s, mean_isp_s, marker="o", label="Isp moyen sur orbite")
+        ax.set_xscale("symlog", linthresh=linthresh)
+        ax.set_xlabel(r"$\dot m_{Ar}$ [mg/s]")
+        ax.set_ylabel("Isp [s]")
+        ax.set_title("Impulsion specifique vs injection d'argon")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.legend(fontsize=8)
+        fig.tight_layout()
+        fig.savefig(out_dir.joinpath("Fig_3_13b_isp_vs_argon_rate.png"), dpi=220)
+        plt.close(fig)
 
-    ax = axes[1, 0]
-    ax.semilogx(rates_arr[1:], min_isp_arr[1:], marker="o")
-    ax.set_title("Worst-case Isp")
-    ax.set_xlabel("Argon injection rate [part/s]")
-    ax.set_ylabel("Isp [s]")
-    ax.grid(True, alpha=0.3)
+    if _want("3_14", selected):
+        fig, ax = plt.subplots(figsize=(8.0, 4.8))
+        if ar_min_mg_s is not None and ar_min_mg_s > 0.0:
+            ax.axvline(ar_min_mg_s, color="k", linestyle="--", linewidth=1.2, label=r"$\dot m_{Ar,min}$")
+        ax.axhline(0.0, color="k", linewidth=1.0)
+        ax.plot(x_plot_mg_s, min_margin_plot_mn, marker="o")
+        ax.set_xscale("log")
+        ax.set_xlim(left=1e-4)
+        ax.set_xlabel(r"$\dot m_{Ar}$ [mg/s]")
+        ax.set_ylabel(r"$\min_\theta(T-D)$ [mN]")
+        ax.set_title("Marge minimale sur l'orbite")
+        ax.grid(True, which="both", alpha=0.3)
+        if ar_min_mg_s is not None and ar_min_mg_s > 0.0:
+            ax.legend(fontsize=8)
+        fig.tight_layout()
+        fig.savefig(out_dir.joinpath("Fig_3_14_argon_min_margin_vs_rate.png"), dpi=220)
+        plt.close(fig)
 
-    ax = axes[1, 1]
-    if np.isfinite(eff_arr[1:]).any():
-        ax.semilogx(rates_arr[1:], eff_arr[1:], marker="o")
-    ax.set_title("Margin gain per total propellant flow")
-    ax.set_xlabel("Argon injection rate [part/s]")
-    ax.set_ylabel("Delta min(T-D) / m_dot_total [N s / kg]")
-    ax.grid(True, alpha=0.3)
+        fig, ax = plt.subplots(figsize=(8.0, 4.8))
+        ax.plot(x_plot_mg_s, td_ratio_plot, marker="o")
+        ax.axhline(1.0, color="k", linewidth=1.0, linestyle="--", label="T/D = 1")
+        ax.set_xscale("log")
+        ax.set_xlim(left=1e-4)
+        ax.set_xlabel(r"$\dot m_{Ar}$ [mg/s]")
+        ax.set_ylabel("T/D au bottleneck [-]")
+        ax.set_title("Rapport T/D au pire point de l'orbite")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.legend(fontsize=8)
+        fig.tight_layout()
+        fig.savefig(out_dir.joinpath("Fig_3_14b_argon_td_ratio_bottleneck.png"), dpi=220)
+        plt.close(fig)
 
-    for axis in axes.flat:
-        axis.set_xlim(x_min, x_max)
-    fig.suptitle("Argon impact around current optimum orbit")
-    fig.tight_layout()
-    fig.savefig(out_dir.joinpath("argon_usage_optimum.png"), dpi=220)
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for label, mass in zip(TANK_LABELS, TANK_MASSES_KG):
-        lifetimes = np.asarray(
-            [_tank_lifetime_days(mass, float(row["argon_mdot_kg_s"])) for row in rows[1:]],
-            dtype=float,
+    if _want("3_15", selected):
+        fig, ax = plt.subplots(figsize=(8.0, 4.8))
+        ax.plot(altitude_compare, 1e3 * thrust_air_alt, label="Air seul", linewidth=2.0)
+        ax.plot(
+            altitude_compare,
+            1e3 * thrust_arg_alt,
+            label=rf"Air + Ar ({reference_row['argon_mdot_mg_s']:.3f} mg/s)",
+            linewidth=2.0,
         )
-        ax.loglog(rates_arr[1:], lifetimes, marker="o", label=label)
-    ax.set_xlabel("Argon injection rate [part/s]")
-    ax.set_ylabel("Continuous-use lifetime [days]")
-    ax.set_title("Argon tank lifetime")
-    ax.grid(True, alpha=0.3, which="both")
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(out_dir.joinpath("argon_tank_lifetime.png"), dpi=220)
-    plt.close(fig)
+        ax.set_xlabel("Altitude [km]")
+        ax.set_ylabel("Thrust [mN]")
+        ax.set_title(rf"Thrust vs altitude à $A_{{intake}}={args.area_m2:.3f}$ m$^2$")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(out_dir.joinpath("Fig_3_15_thrust_vs_altitude_air_vs_argon.png"), dpi=220)
+        plt.close(fig)
 
-    print(f"Saved argon study to {out_dir}")
-    print(
-        "Best absolute margin: "
-        f"rate={best_abs['argon_rate']:.3e} part/s, min_margin={best_abs['min_margin_N']:.3e} N"
-    )
-    if best_eff is not None:
-        print(
-            "Best margin per argon flow: "
-            f"rate={best_eff['argon_rate']:.3e} part/s, "
-            f"metric={best_eff['gain_per_argon_kg_s']:.3e} N s / kg"
+    if _want("table_3_1", selected):
+        scenario_rows = _scenario_rows(reference_row)
+        fig, ax = plt.subplots(figsize=(10.0, 2.8))
+        ax.axis("off")
+        table = ax.table(
+            cellText=[
+                [
+                    label,
+                    f"{chi:.1f}",
+                    f"{avg_mg_s:.3f}",
+                    f"{cons_g_day:.2f}",
+                    f"{tank_1y:.2f}",
+                    f"{tank_5y:.2f}",
+                ]
+                for label, chi, avg_mg_s, cons_g_day, tank_1y, tank_5y in scenario_rows
+            ],
+            colLabels=["Scénario", "χ", "Ar moyen [mg/s]", "Conso [g/j]", "Réservoir 1 an [kg]", "Réservoir 5 ans [kg]"],
+            loc="center",
+            cellLoc="center",
+            colLoc="center",
         )
+        table.auto_set_font_size(False)
+        table.set_fontsize(8.5)
+        table.scale(1.0, 1.35)
+        ax.set_title("Scénarios de consommation d'argon", pad=10)
+        fig.tight_layout()
+        fig.savefig(out_dir.joinpath("Table_3_1_argon_scenarios.png"), dpi=220)
+        plt.close(fig)
+
+    print(f"Saved argon report figures to {out_dir}")
+    print(f"Reference argon rate: {reference_row['argon_rate']:.3e} part/s ({reference_row['argon_mdot_mg_s']:.3f} mg/s)")
+    if ar_min_mg_s is not None:
+        print(f"Minimum viable argon flow: {ar_min_mg_s:.3f} mg/s")
 
 
 if __name__ == "__main__":

@@ -56,7 +56,7 @@ ARGON_INJECTION_RATE = 0.0
 POWER_RF_W = 1000.0
 ION_SEED = 1e10
 ELECTRON_SEED = 1e12
-A_INTAKE_M2 = 1.0
+A_INTAKE_M2 = 0.23
 FAST_MODE = True
 T0 = 0.0
 TF = 1e-2
@@ -257,7 +257,7 @@ axes[2].set_ylabel("Thrust - Drag (N)")
 axes[2].grid(True)
 
 fig.tight_layout()
-fig.savefig(out_dir.joinpath("drag_thrust_difference_vs_altitude.png"), dpi=200)
+fig.savefig(out_dir.joinpath("Fig_extra_drag_thrust_difference_vs_altitude.png"), dpi=200)
 
 # Individual figures
 fig_drag, ax_drag = plt.subplots(figsize=(7, 5))
@@ -267,7 +267,7 @@ ax_drag.set_xlabel("Altitude (km)")
 ax_drag.set_ylabel("Drag (N)")
 ax_drag.grid(True)
 fig_drag.tight_layout()
-fig_drag.savefig(out_dir.joinpath("drag_vs_altitude.png"), dpi=200)
+fig_drag.savefig(out_dir.joinpath("Fig_2_10_drag_vs_altitude.png"), dpi=200)
 
 fig_thrust, ax_thrust = plt.subplots(figsize=(7, 5))
 ax_thrust.plot(altitudes_km, thrust_N, color="tab:blue")
@@ -276,7 +276,7 @@ ax_thrust.set_xlabel("Altitude (km)")
 ax_thrust.set_ylabel("Thrust (N)")
 ax_thrust.grid(True)
 fig_thrust.tight_layout()
-fig_thrust.savefig(out_dir.joinpath("thrust_vs_altitude.png"), dpi=200)
+fig_thrust.savefig(out_dir.joinpath("Fig_3_5_thrust_vs_altitude.png"), dpi=200)
 
 fig_delta, ax_delta = plt.subplots(figsize=(7, 5))
 ax_delta.plot(altitudes_km, thrust_minus_drag_N, color="tab:green")
@@ -285,6 +285,6 @@ ax_delta.set_xlabel("Altitude (km)")
 ax_delta.set_ylabel("Thrust - Drag (N)")
 ax_delta.grid(True)
 fig_delta.tight_layout()
-fig_delta.savefig(out_dir.joinpath("thrust_minus_drag_vs_altitude.png"), dpi=200)
+fig_delta.savefig(out_dir.joinpath("Fig_3_10c_thrust_minus_drag_vs_altitude.png"), dpi=200)
 
 plt.show()

@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.constants import e, k as k_B, m_e
 from datetime import datetime
+from pathlib import Path
 
 from global_model_package.reactions import (Excitation, Ionisation, Dissociation, 
                 VibrationalExcitation, RotationalExcitation,
@@ -16,7 +17,7 @@ try:
 except ImportError:
     from msis_densities import get_msis_neutral_atmosphere
 
-ReactionRateConstant.CROSS_SECTIONS_PATH = "../../../cross_sections"
+ReactionRateConstant.CROSS_SECTIONS_PATH = str(Path(__file__).resolve().parents[3].joinpath("cross_sections"))
 
 DEFAULT_MSIS_DATE = datetime(2020, 1, 1, 12, 0, 0)
 DEFAULT_MSIS_LAT = 0.0

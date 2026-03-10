@@ -1,0 +1,375 @@
+{
+  "model": "/Users/rafaelcorradi/Code/ProjetEA/outputs/thrust_dataset/thrust_gp_model.pkl",
+  "n_validation_points": 40,
+  "n_training_samples": 225,
+  "opt_altitude_km": 178.53,
+  "opt_area_m2": 0.236,
+  "alt_window_km": 30.0,
+  "log_area_window": 0.12,
+  "min_distance_to_training_set": 0.2,
+  "mae_N": 3.97387803718243e-05,
+  "mape": 0.02341096669546333,
+  "r2": 0.9998406251668369,
+  "validation_points": [
+    {
+      "altitude_km": 194.9673629133578,
+      "intake_area_m2": 0.22794415662941178,
+      "theta_rad": 4.1740050759454945,
+      "nearest_train_distance": 0.8496414905598393,
+      "thrust_true_N": 0.003947945777663265,
+      "thrust_pred_N": 0.00393807885110959,
+      "sigma_gp_N": 9.879827740388633e-06
+    },
+    {
+      "altitude_km": 174.86270638512315,
+      "intake_area_m2": 0.28363170132313714,
+      "theta_rad": 2.5534039568310773,
+      "nearest_train_distance": 0.5925134198321452,
+      "thrust_true_N": 0.013450238754361597,
+      "thrust_pred_N": 0.013452793424651128,
+      "sigma_gp_N": 1.8651237398659317e-06
+    },
+    {
+      "altitude_km": 200.04587519468294,
+      "intake_area_m2": 0.2636183439405247,
+      "theta_rad": 5.114640920678304,
+      "nearest_train_distance": 0.8503542711484309,
+      "thrust_true_N": 0.003463230721999193,
+      "thrust_pred_N": 0.0034144419625264056,
+      "sigma_gp_N": 2.3481161573240197e-05
+    },
+    {
+      "altitude_km": 190.37208174356184,
+      "intake_area_m2": 0.21275510854872395,
+      "theta_rad": 1.049121797060959,
+      "nearest_train_distance": 0.36711038817239544,
+      "thrust_true_N": 0.005067754768397813,
+      "thrust_pred_N": 0.005068497217900685,
+      "sigma_gp_N": 2.8068948316836498e-06
+    },
+    {
+      "altitude_km": 154.18064087325897,
+      "intake_area_m2": 0.2835661294439953,
+      "theta_rad": 0.14270416421026036,
+      "nearest_train_distance": 1.609860147067612,
+      "thrust_true_N": 0.022381996703854802,
+      "thrust_pred_N": 0.022749558320622195,
+      "sigma_gp_N": 0.0002774324970113519
+    },
+    {
+      "altitude_km": 207.06734109820536,
+      "intake_area_m2": 0.27929004034572885,
+      "theta_rad": 0.5657873957684653,
+      "nearest_train_distance": 0.39387179179287285,
+      "thrust_true_N": 0.002176035085107379,
+      "thrust_pred_N": 0.0020583992302651835,
+      "sigma_gp_N": 3.9238246471687236e-05
+    },
+    {
+      "altitude_km": 194.19838211942118,
+      "intake_area_m2": 0.22177205150293258,
+      "theta_rad": 4.538717658171404,
+      "nearest_train_distance": 0.9055370170503713,
+      "thrust_true_N": 0.003962709766042236,
+      "thrust_pred_N": 0.003955582276702632,
+      "sigma_gp_N": 7.589758719527206e-06
+    },
+    {
+      "altitude_km": 195.69385831661722,
+      "intake_area_m2": 0.20994751951762528,
+      "theta_rad": 2.90206022683632,
+      "nearest_train_distance": 0.30095698183103725,
+      "thrust_true_N": 0.0021792447250675276,
+      "thrust_pred_N": 0.002182138230850626,
+      "sigma_gp_N": 7.314961454906509e-06
+    },
+    {
+      "altitude_km": 156.21681796053275,
+      "intake_area_m2": 0.261042322018148,
+      "theta_rad": 1.0133004724866397,
+      "nearest_train_distance": 1.1319671610799367,
+      "thrust_true_N": 0.021141686752102883,
+      "thrust_pred_N": 0.02120137758422999,
+      "sigma_gp_N": 0.00012476466174748748
+    },
+    {
+      "altitude_km": 175.55315627373403,
+      "intake_area_m2": 0.19339827630298478,
+      "theta_rad": 3.148157169168554,
+      "nearest_train_distance": 0.20040475085679132,
+      "thrust_true_N": 0.009225729147228355,
+      "thrust_pred_N": 0.009224462696957158,
+      "sigma_gp_N": 1.4476898052223401e-06
+    },
+    {
+      "altitude_km": 170.77788145395488,
+      "intake_area_m2": 0.19993552691318692,
+      "theta_rad": 0.9570051658730078,
+      "nearest_train_distance": 0.23138878155683004,
+      "thrust_true_N": 0.012101867121401714,
+      "thrust_pred_N": 0.012101246793491232,
+      "sigma_gp_N": 2.3984339457318864e-06
+    },
+    {
+      "altitude_km": 204.13589933091612,
+      "intake_area_m2": 0.17975415908279957,
+      "theta_rad": 4.37510994977821,
+      "nearest_train_distance": 1.0665600027417368,
+      "thrust_true_N": 0.00024056504199229399,
+      "thrust_pred_N": 0.00041596924502904607,
+      "sigma_gp_N": 4.584729845119228e-05
+    },
+    {
+      "altitude_km": 187.16190720483988,
+      "intake_area_m2": 0.2765501214756229,
+      "theta_rad": 2.803282555392716,
+      "nearest_train_distance": 0.33481714574191024,
+      "thrust_true_N": 0.007191072306471266,
+      "thrust_pred_N": 0.0071897087655741895,
+      "sigma_gp_N": 6.209005670248929e-06
+    },
+    {
+      "altitude_km": 197.8956967962498,
+      "intake_area_m2": 0.2585093219537931,
+      "theta_rad": 2.3940269695329697,
+      "nearest_train_distance": 0.8331125989424192,
+      "thrust_true_N": 0.0035472250170177303,
+      "thrust_pred_N": 0.0035045047724006906,
+      "sigma_gp_N": 2.2268631357974528e-05
+    },
+    {
+      "altitude_km": 175.13485192963986,
+      "intake_area_m2": 0.26433318801361383,
+      "theta_rad": 1.8944563284709595,
+      "nearest_train_distance": 0.3746156360271588,
+      "thrust_true_N": 0.013060997638924127,
+      "thrust_pred_N": 0.013060410710163454,
+      "sigma_gp_N": 3.707924134905824e-06
+    },
+    {
+      "altitude_km": 162.16432330708662,
+      "intake_area_m2": 0.2756049226917044,
+      "theta_rad": 3.9601823284556494,
+      "nearest_train_distance": 0.9073108771608214,
+      "thrust_true_N": 0.02002607687452124,
+      "thrust_pred_N": 0.020025493917919822,
+      "sigma_gp_N": 5.402980320669666e-05
+    },
+    {
+      "altitude_km": 181.8050872209501,
+      "intake_area_m2": 0.2307022281974734,
+      "theta_rad": 2.2733356785813523,
+      "nearest_train_distance": 0.39845090657894616,
+      "thrust_true_N": 0.008629365955392787,
+      "thrust_pred_N": 0.008628609622469167,
+      "sigma_gp_N": 2.329636903130194e-06
+    },
+    {
+      "altitude_km": 152.3590353662505,
+      "intake_area_m2": 0.2451375775019057,
+      "theta_rad": 0.550720685222402,
+      "nearest_train_distance": 1.5327056110471264,
+      "thrust_true_N": 0.022044695313201385,
+      "thrust_pred_N": 0.022314086900390204,
+      "sigma_gp_N": 0.0002928735129260868
+    },
+    {
+      "altitude_km": 198.18787031955492,
+      "intake_area_m2": 0.1934030338879146,
+      "theta_rad": 0.7414529503640942,
+      "nearest_train_distance": 0.884498411470015,
+      "thrust_true_N": 0.0021305544942668442,
+      "thrust_pred_N": 0.002140610135539258,
+      "sigma_gp_N": 6.228150420767059e-06
+    },
+    {
+      "altitude_km": 186.4298639473239,
+      "intake_area_m2": 0.1907213097922095,
+      "theta_rad": 6.043781272907868,
+      "nearest_train_distance": 0.41610522797961386,
+      "thrust_true_N": 0.005938376151403441,
+      "thrust_pred_N": 0.00593920815448931,
+      "sigma_gp_N": 1.7814015059023394e-06
+    },
+    {
+      "altitude_km": 194.01526440512242,
+      "intake_area_m2": 0.25901726530575825,
+      "theta_rad": 5.708780846241116,
+      "nearest_train_distance": 0.6548235125035713,
+      "thrust_true_N": 0.005696446447500828,
+      "thrust_pred_N": 0.005692658214529099,
+      "sigma_gp_N": 5.597754433481976e-06
+    },
+    {
+      "altitude_km": 169.8015580877921,
+      "intake_area_m2": 0.23226035871195955,
+      "theta_rad": 4.3963895824884425,
+      "nearest_train_distance": 0.5892122423853103,
+      "thrust_true_N": 0.014972361733491707,
+      "thrust_pred_N": 0.014973361790703939,
+      "sigma_gp_N": 3.505475830503504e-06
+    },
+    {
+      "altitude_km": 206.7718814636942,
+      "intake_area_m2": 0.24466320950050904,
+      "theta_rad": 1.6705102354628563,
+      "nearest_train_distance": 0.2578611855325208,
+      "thrust_true_N": 0.0015628576013456857,
+      "thrust_pred_N": 0.0015190894755088618,
+      "sigma_gp_N": 2.3137168955358434e-05
+    },
+    {
+      "altitude_km": 202.11726727933186,
+      "intake_area_m2": 0.27321952297617913,
+      "theta_rad": 6.089514774216757,
+      "nearest_train_distance": 0.8112984736109808,
+      "thrust_true_N": 0.003541405281254092,
+      "thrust_pred_N": 0.0034732657378974355,
+      "sigma_gp_N": 2.833086530472873e-05
+    },
+    {
+      "altitude_km": 195.23300982442572,
+      "intake_area_m2": 0.25424030435850803,
+      "theta_rad": 4.893036237750701,
+      "nearest_train_distance": 0.8227960249816243,
+      "thrust_true_N": 0.004667726307768703,
+      "thrust_pred_N": 0.004654192449090747,
+      "sigma_gp_N": 1.2349526739808951e-05
+    },
+    {
+      "altitude_km": 160.20832247111807,
+      "intake_area_m2": 0.24309221964160257,
+      "theta_rad": 4.504353903384995,
+      "nearest_train_distance": 1.317802206939785,
+      "thrust_true_N": 0.020140120634897063,
+      "thrust_pred_N": 0.020151474214759886,
+      "sigma_gp_N": 7.324857519253787e-05
+    },
+    {
+      "altitude_km": 176.53326022362205,
+      "intake_area_m2": 0.24384941696631107,
+      "theta_rad": 2.823421587882001,
+      "nearest_train_distance": 0.29799162512024563,
+      "thrust_true_N": 0.010803653071544876,
+      "thrust_pred_N": 0.01080192139891047,
+      "sigma_gp_N": 1.4423473979999855e-06
+    },
+    {
+      "altitude_km": 151.15822594723372,
+      "intake_area_m2": 0.2117678495598337,
+      "theta_rad": 1.7105441813891258,
+      "nearest_train_distance": 1.6959651884895213,
+      "thrust_true_N": 0.02176215262582114,
+      "thrust_pred_N": 0.02197207243353143,
+      "sigma_gp_N": 0.00035744475462582955
+    },
+    {
+      "altitude_km": 157.78736952405288,
+      "intake_area_m2": 0.18209930290189155,
+      "theta_rad": 0.6056422771477703,
+      "nearest_train_distance": 0.8968744237310922,
+      "thrust_true_N": 0.01778536683129044,
+      "thrust_pred_N": 0.017762121116692307,
+      "sigma_gp_N": 8.687951273673792e-05
+    },
+    {
+      "altitude_km": 189.51293719454728,
+      "intake_area_m2": 0.22788942698113668,
+      "theta_rad": 5.6712181161893485,
+      "nearest_train_distance": 0.2908138446860951,
+      "thrust_true_N": 0.006267530667455539,
+      "thrust_pred_N": 0.006270630919454567,
+      "sigma_gp_N": 2.4385059077956117e-06
+    },
+    {
+      "altitude_km": 206.5805839460526,
+      "intake_area_m2": 0.22436694648395883,
+      "theta_rad": 1.2714865203928138,
+      "nearest_train_distance": 0.29463624076400224,
+      "thrust_true_N": 0.0012333473916265394,
+      "thrust_pred_N": 0.0012551539640363136,
+      "sigma_gp_N": 1.9972906466294358e-05
+    },
+    {
+      "altitude_km": 168.07952148828912,
+      "intake_area_m2": 0.2868988058203758,
+      "theta_rad": 1.9223821654976467,
+      "nearest_train_distance": 0.44613819760069606,
+      "thrust_true_N": 0.017259201551130025,
+      "thrust_pred_N": 0.017253511351615868,
+      "sigma_gp_N": 1.2042724593723384e-05
+    },
+    {
+      "altitude_km": 170.75758236209214,
+      "intake_area_m2": 0.20373117013647765,
+      "theta_rad": 3.639343885206614,
+      "nearest_train_distance": 0.39708644672933596,
+      "thrust_true_N": 0.012830003743736327,
+      "thrust_pred_N": 0.012830375684705308,
+      "sigma_gp_N": 2.184564357609714e-06
+    },
+    {
+      "altitude_km": 176.70334867654847,
+      "intake_area_m2": 0.18488627005911062,
+      "theta_rad": 1.110696152473027,
+      "nearest_train_distance": 0.3224490680302217,
+      "thrust_true_N": 0.008830895939968072,
+      "thrust_pred_N": 0.008829331968818719,
+      "sigma_gp_N": 1.4845540293043005e-06
+    },
+    {
+      "altitude_km": 159.89828154505713,
+      "intake_area_m2": 0.20914338703691038,
+      "theta_rad": 5.382266283729374,
+      "nearest_train_distance": 1.214409300018132,
+      "thrust_true_N": 0.019386726366084236,
+      "thrust_pred_N": 0.019383024189119132,
+      "sigma_gp_N": 9.916471564654962e-05
+    },
+    {
+      "altitude_km": 156.3252903201283,
+      "intake_area_m2": 0.21055933718690317,
+      "theta_rad": 4.76591876506936,
+      "nearest_train_distance": 1.8088658523600776,
+      "thrust_true_N": 0.020865129791945398,
+      "thrust_pred_N": 0.020917187916488035,
+      "sigma_gp_N": 0.00021113364282989003
+    },
+    {
+      "altitude_km": 177.07229557355603,
+      "intake_area_m2": 0.258090468813935,
+      "theta_rad": 4.52051907389092,
+      "nearest_train_distance": 0.2952264208247394,
+      "thrust_true_N": 0.01237384120326697,
+      "thrust_pred_N": 0.012372987045421141,
+      "sigma_gp_N": 2.844399635001757e-06
+    },
+    {
+      "altitude_km": 162.14456094305305,
+      "intake_area_m2": 0.24355649724215853,
+      "theta_rad": 2.714920638849496,
+      "nearest_train_distance": 0.8074333806824434,
+      "thrust_true_N": 0.018514293020310813,
+      "thrust_pred_N": 0.018511838763515108,
+      "sigma_gp_N": 3.281814300444423e-05
+    },
+    {
+      "altitude_km": 188.71883968095062,
+      "intake_area_m2": 0.27608802699022006,
+      "theta_rad": 3.9414976909654507,
+      "nearest_train_distance": 0.3808116844372504,
+      "thrust_true_N": 0.0077354663425748945,
+      "thrust_pred_N": 0.007736484220113412,
+      "sigma_gp_N": 5.802092658558839e-06
+    },
+    {
+      "altitude_km": 183.57587813476414,
+      "intake_area_m2": 0.18318900539145522,
+      "theta_rad": 0.6497000075131015,
+      "nearest_train_distance": 0.34526160637005776,
+      "thrust_true_N": 0.006038816745541843,
+      "thrust_pred_N": 0.006038825516581057,
+      "sigma_gp_N": 1.976622772222049e-06
+    }
+  ]
+}

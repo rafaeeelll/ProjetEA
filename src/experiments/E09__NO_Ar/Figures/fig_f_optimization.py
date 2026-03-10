@@ -59,7 +59,7 @@ def figure_17_convergence(out_dir: Path, payload: dict) -> None:
     axes[1, 1].grid(True, alpha=0.3)
 
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("F17_active_learning_convergence.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Fig_4_4_F17_active_learning_convergence.png"), dpi=220)
     plt.close(fig)
 
 
@@ -127,7 +127,7 @@ def figure_18_summary_table(out_dir: Path, payload: dict) -> None:
     table.scale(1.0, 1.4)
     ax.set_title("Optimal design summary", pad=12)
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("F18_optimal_design_table.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Table_4_1_F18_optimal_design_table.png"), dpi=220)
     plt.close(fig)
 
 

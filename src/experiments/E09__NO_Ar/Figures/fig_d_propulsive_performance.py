@@ -41,7 +41,7 @@ def figure_11_isp_vs_altitude(out_dir: Path, fast_mode: bool) -> None:
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("D11_isp_vs_altitude.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Fig_3_6_D11_isp_vs_altitude.png"), dpi=220)
     plt.close(fig)
 
 
@@ -69,7 +69,7 @@ def figure_12_thrust_decomposition(out_dir: Path, fast_mode: bool) -> None:
     ax.legend(ncol=3, fontsize=8)
     ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("D12_thrust_decomposition.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Fig_3_7_D12_thrust_decomposition.png"), dpi=220)
     plt.close(fig)
 
 
@@ -102,7 +102,7 @@ def figure_13_td_contours_vs_power(out_dir: Path, fast_mode: bool) -> None:
     for ax in axes[:, 0]:
         ax.set_ylabel("Altitude [km]")
     fig.tight_layout()
-    fig.savefig(out_dir.joinpath("D13_td_ratio_iso_prf.png"), dpi=220)
+    fig.savefig(out_dir.joinpath("Fig_extra_D13_td_ratio_iso_prf.png"), dpi=220)
     plt.close(fig)
 
 
@@ -120,4 +120,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
