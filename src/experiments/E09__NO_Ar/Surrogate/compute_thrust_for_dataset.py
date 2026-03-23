@@ -1,3 +1,9 @@
+"""Complete le dataset en calculant le thrust des echantillons manquants.
+
+On passe ici d'un etat atmospherique brut a une evaluation plasma/propulsive
+qui pourra ensuite servir pour l'apprentissage.
+"""
+
 from __future__ import annotations
 
 import argparse

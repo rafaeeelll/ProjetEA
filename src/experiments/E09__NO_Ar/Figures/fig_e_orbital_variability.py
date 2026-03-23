@@ -1,3 +1,9 @@
+"""Etudie la variabilite orbitale et environnementale du cas E09.
+
+On compare ici l'effet de l'angle orbital, de l'activite solaire et de la
+geographie sur la marge propulsive du systeme.
+"""
+
 from __future__ import annotations
 
 import argparse

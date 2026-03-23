@@ -1,3 +1,9 @@
+"""Trace une comparaison simple du thrust pour plusieurs aires d'intake.
+
+C'est surtout une figure de lecture rapide pour voir comment la taille captee
+deplace les niveaux de performance avec l'altitude.
+"""
+
 from __future__ import annotations
 
 import argparse

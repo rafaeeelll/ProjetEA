@@ -1,3 +1,9 @@
+"""Petites briques de trainee reutilisees dans les scripts E09.
+
+J'ai rassemble ici les constantes et formules de base pour ne pas recopier la
+meme logique de drag dans chaque etude.
+"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -9,12 +15,12 @@ M_O = 2.67e-26
 M_N = 2.33e-26
 
 # Shared drag defaults
-ETA_COLLECTION_DEFAULT = 0.55
+ETA_COLLECTION_DEFAULT = 0.4
 CD_BODY_DEFAULT = 2.2
 A_BODY_M2_DEFAULT = 0.05
 R_CHAMBER_DEFAULT_M = 6e-2
 ETA_C_MAX = ETA_COLLECTION_DEFAULT
-ETA_C_ALPHA = 0.12
+ETA_C_ALPHA = 0.1
 
 
 def collection_efficiency(A_intake: float, A_chamber: float | None = None) -> float:

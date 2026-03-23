@@ -1,3 +1,9 @@
+"""Definit le jeu de reactions et les grandeurs utiles pour le modele plasma.
+
+C'est aussi ici qu'on recolle l'atmosphere captee, la compression et
+l'injection d'argon avec la chimie du propulseur.
+"""
+
 import numpy as np
 from scipy.constants import e, k as k_B, m_e
 from datetime import datetime

@@ -1,3 +1,9 @@
+"""Rassemble les figures liees au modele plasma 0D.
+
+Le but est de verifier que la reponse reste coherente quand on fait varier le
+temps, la puissance RF ou un peu la composition du melange.
+"""
+
 from __future__ import annotations
 
 import argparse

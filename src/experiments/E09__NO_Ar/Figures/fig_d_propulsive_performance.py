@@ -1,3 +1,9 @@
+"""Genere les figures de performance propulsive pour E09.
+
+Ici on regarde surtout l'Isp, la decomposition du thrust et le rapport
+thrust/drag pour garder un lien direct avec la viabilite orbitale.
+"""
+
 from __future__ import annotations
 
 import argparse

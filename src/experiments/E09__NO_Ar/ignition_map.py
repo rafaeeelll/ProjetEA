@@ -1,3 +1,9 @@
+"""Construit des cartes de fonctionnement autour de l'ignition et de la marge.
+
+L'objectif est de visualiser rapidement les zones ou le systeme pousse assez,
+traine trop ou reste juste au seuil.
+"""
+
 from __future__ import annotations
 
 import argparse

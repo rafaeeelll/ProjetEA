@@ -1,3 +1,9 @@
+"""Calcule une trainee orbitale moyenne en fonction de l'altitude.
+
+L'idee est d'obtenir une courbe de reference simple avant de la comparer plus
+finement aux niveaux de thrust dans les autres scripts.
+"""
+
 import sys
 import os
 import json

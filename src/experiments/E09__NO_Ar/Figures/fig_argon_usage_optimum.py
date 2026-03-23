@@ -1,3 +1,9 @@
+"""Explore ce que l'ajout d'argon change autour du point optimal.
+
+L'idee est de regarder jusqu'ou on gagne en marge propulsive sans perdre de
+vue le cout associe au debit injecte.
+"""
+
 from __future__ import annotations
 
 import argparse

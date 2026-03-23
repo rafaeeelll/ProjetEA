@@ -1,3 +1,9 @@
+"""Construit un dataset de cas MSIS pour entrainer le surrogate.
+
+Le but est d'echantillonner l'enveloppe utile de l'experience sans rester sur
+une grille trop rigide ni trop couteuse a calculer.
+"""
+
 from __future__ import annotations
 
 import json

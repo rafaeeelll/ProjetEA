@@ -1,3 +1,9 @@
+"""Centralise la lecture du space weather et les appels MSIS pour E09.
+
+Comme plusieurs scripts en dependent, on garde ici une base commune pour sortir
+des densites coherentes selon la date, l'altitude et la position.
+"""
+
 from __future__ import annotations
 
 from datetime import date as date_cls

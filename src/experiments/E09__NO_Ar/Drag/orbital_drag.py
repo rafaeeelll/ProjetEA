@@ -1,3 +1,9 @@
+"""Evalue la trainee tout au long d'une orbite a altitude fixee.
+
+Ca permet de garder la variabilite orbitale au lieu de se contenter d'une
+valeur moyenne un peu trop optimiste.
+"""
+
 import sys
 import os
 import json

@@ -1,3 +1,9 @@
+"""Verifie que le surrogate suit correctement le modele direct.
+
+L'idee est de comparer prediction et calcul complet sur des cas plausibles
+avant de s'appuyer dessus pour l'optimisation.
+"""
+
 from __future__ import annotations
 
 import argparse

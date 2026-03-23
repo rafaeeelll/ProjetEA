@@ -1,3 +1,9 @@
+"""Genere les figures de base sur la physique de l'intake.
+
+On rassemble ici les courbes qui aident a comprendre comment l'aire captee,
+la compression et la composition atmospherique se combinent.
+"""
+
 from __future__ import annotations
 
 import argparse

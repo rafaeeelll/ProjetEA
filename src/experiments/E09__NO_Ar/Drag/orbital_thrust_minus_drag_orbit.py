@@ -1,3 +1,9 @@
+"""Compare thrust et drag sur une orbite complete pour plusieurs cas.
+
+Le script sert surtout a visualiser la marge locale et a voir si elle reste
+positive quand on change altitude ou injection d'argon.
+"""
+
 import sys
 import os
 import json

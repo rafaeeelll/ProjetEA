@@ -1,3 +1,9 @@
+"""Suit dans le temps quelques grandeurs plasma sur un cas de reference E09.
+
+Ce script sert surtout de verification qualitative pour voir si l'etat calcule
+reste propre et physiquement lisible pendant la simulation.
+"""
+
 import json
 import os
 import sys

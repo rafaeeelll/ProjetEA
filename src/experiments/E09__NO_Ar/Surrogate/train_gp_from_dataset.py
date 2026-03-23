@@ -1,3 +1,9 @@
+"""Entraine un Gaussian Process a partir du dataset de thrust.
+
+Le choix reste volontairement simple ici: on normalise les entrees puis on
+sauvegarde le modele pour les scripts d'analyse et d'optimisation.
+"""
+
 from __future__ import annotations
 
 import json

@@ -1,3 +1,9 @@
+"""Met en forme les sorties de l'optimisation finale.
+
+Le script sert surtout a montrer la convergence et a resumer proprement le
+meilleur design retenu pour l'etude E09.
+"""
+
 from __future__ import annotations
 
 import argparse

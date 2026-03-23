@@ -1,3 +1,9 @@
+"""Nettoie les doublons quasi identiques dans le dataset de thrust.
+
+Ca permet de garder un apprentissage plus stable et d'eviter d'empiler des
+points qui racontent presque la meme chose.
+"""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,9 @@
+"""Boucle d'active learning pour enrichir le dataset de thrust.
+
+On alterne prediction surrogate, verification sur le modele direct et
+optimisation jusqu'a obtenir un critere de marge jugé suffisant.
+"""
+
 from __future__ import annotations
 
 import argparse

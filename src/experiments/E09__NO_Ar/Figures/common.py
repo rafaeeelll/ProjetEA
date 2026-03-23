@@ -1,3 +1,9 @@
+"""Utilitaires communs pour toutes les figures E09.
+
+Le but est de reconstruire un cas complet avec atmosphere, orbite, plasma et
+drag sans recopier la meme logique dans chaque script de figure.
+"""
+
 from __future__ import annotations
 
 import json

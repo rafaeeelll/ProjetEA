@@ -1,3 +1,9 @@
+"""Evalue la poussee le long d'une orbite complete sur quelques cas types.
+
+Le but est de voir comment la reponse du modele evolue avec l'angle orbital,
+pas seulement sur un point moyen.
+"""
+
 import sys
 import os
 import json

@@ -1,3 +1,9 @@
+"""Petit balayage en altitude pour comparer thrust et drag sur un meme cas orbital.
+
+Le but ici est surtout de voir a partir de quelle zone la poussee devient
+comparable a la trainee avec le modele retenu pour E09.
+"""
+
 import sys
 import os
 import json

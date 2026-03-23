@@ -1,3 +1,9 @@
+"""Construit les cartes de faisabilite du propulseur air-breathing.
+
+On balaye surtout altitude et aire d'intake pour reperer les zones ou la marge
+reste positive et ou le solveur reste exploitable.
+"""
+
 from __future__ import annotations
 
 import argparse
